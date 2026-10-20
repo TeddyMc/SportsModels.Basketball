@@ -3,6 +3,7 @@
 These are agreed project defaults; apply proportionately to task complexity. Avoid needless abstractions.
 
 ## Architecture
+- **Mandatory namespace/project prefix:** `SportsModels.Basketball`. Name the data-acquisition onion `SportsModels.Basketball.Data` (not `NbaModel.Data` or an unprefixed name). Use `SportsModels.Basketball.Data.Contracts`, `SportsModels.Basketball.Data.Application`, `SportsModels.Basketball.Data.Domain`, `SportsModels.Basketball.Data.Interfaces`, `SportsModels.Basketball.Data.Definitions`, `SportsModels.Basketball.Data.Infrastructure`, `SportsModels.Basketball.Data.Autofac` for corresponding namespaces/folders. Test/host/tool project names use `SportsModels.Basketball.Data.Tests.Unit`, `.Tests.QualityAssurance`, `.Host`, `.Tools` as appropriate. Do not create separate assemblies for each layer unless justified by the onion packaging rules below.
 - Use pragmatic onion architecture, with per-function projects or layers: **Contracts, Application, Domain, Interfaces, Definitions, Infrastructure, Autofac**. An onion may initially be one project with these folders.
 - When exposing an onion via NuGet, extract `Xxx.Yyy.MyOnion.Contracts` and `Xxx.Yyy.MyOnion.Autofac` as separate projects/packages.
 - **Contracts:** public service interfaces and public input/output records; favor `get; init;`, few dependencies; communication across onions.
@@ -23,7 +24,7 @@ These are agreed project defaults; apply proportionately to task complexity. Avo
 - Test transport errors, invalid inputs, and reruns as appropriate. Keep heavy domain QA separate from lightweight transport validation.
 
 ## Style
-- PascalCase `NbaModel`-style naming in C# projects and types as applicable to this repository.
+- Use the exact `SportsModels.Basketball` project/namespace root. `NbaModel` describes style only and must not be used as the namespace root.
 - Favor clear descriptive names and high-level methods readable as roughly five or six coherent steps, not a rigid count. Extract meaningful independently testable logic, not trivial one-line wrappers.
 - Prefer `var` for locals, primary constructors where appropriate.
 - Blank lines between statements by default, except closely related constructor assignments; no blank line immediately after an opening brace.
