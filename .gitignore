@@ -1,0 +1,6 @@
+**/bin/
+**/obj/
+work/
+data/
+TestResults/
+*.user
