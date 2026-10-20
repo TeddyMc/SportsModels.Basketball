@@ -4,13 +4,13 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A1EDE1A8-F8C9-4CFE-AA67-A1ACA04659FD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NbaModel.PlayByPlay", "src\NbaModel.PlayByPlay\NbaModel.PlayByPlay.csproj", "{5A313B59-76C3-4636-96AC-CE148DED83CD}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SportsModels.Basketball.Data", "src\SportsModels.Basketball.Data\SportsModels.Basketball.Data.csproj", "{5A313B59-76C3-4636-96AC-CE148DED83CD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NbaModel.PlayByPlay.Host", "src\NbaModel.PlayByPlay.Host\NbaModel.PlayByPlay.Host.csproj", "{8D17734B-0AA5-4433-9E16-6B768EB7F8AA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SportsModels.Basketball.Data.Host", "src\SportsModels.Basketball.Data.Host\SportsModels.Basketball.Data.Host.csproj", "{8D17734B-0AA5-4433-9E16-6B768EB7F8AA}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{5E69DFEC-9445-47CB-904F-C2FFFC50A7FC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NbaModel.PlayByPlay.Tests.Unit", "tests\NbaModel.PlayByPlay.Tests.Unit\NbaModel.PlayByPlay.Tests.Unit.csproj", "{61F03CAB-7BDA-45F9-A6DC-68E1A1C50C39}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SportsModels.Basketball.Data.Tests.Unit", "tests\SportsModels.Basketball.Data.Tests.Unit\SportsModels.Basketball.Data.Tests.Unit.csproj", "{61F03CAB-7BDA-45F9-A6DC-68E1A1C50C39}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

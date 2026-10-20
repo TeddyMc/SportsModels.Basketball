@@ -1,4 +1,4 @@
-namespace NbaModel.PlayByPlay.Contracts;
+namespace SportsModels.Basketball.Data.Contracts;
 
 public sealed record IngestionRequest(DateOnly StartDate, DateOnly EndDate, string OutputPath);
 

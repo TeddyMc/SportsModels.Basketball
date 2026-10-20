@@ -1,13 +1,13 @@
 using System.Net;
 using System.Text;
 using Autofac;
-using NbaModel.PlayByPlay.Application;
-using NbaModel.PlayByPlay.Autofac;
-using NbaModel.PlayByPlay.Contracts;
-using NbaModel.PlayByPlay.Infrastructure;
+using SportsModels.Basketball.Data.Application;
+using SportsModels.Basketball.Data.Autofac;
+using SportsModels.Basketball.Data.Contracts;
+using SportsModels.Basketball.Data.Infrastructure;
 using NUnit.Framework;
 
-namespace NbaModel.PlayByPlay.Tests.Unit;
+namespace SportsModels.Basketball.Data.Tests.Unit;
 
 [TestFixture]
 public sealed class IngestionTests
@@ -17,7 +17,7 @@ public sealed class IngestionTests
     private const string GameId = "0022300001";
 
     [SetUp]
-    public void SetUp() => directory = Path.Combine(Path.GetTempPath(), "NbaModel-tests-" + Guid.NewGuid().ToString("N"));
+    public void SetUp() => directory = Path.Combine(Path.GetTempPath(), "SportsModels.Basketball.Data-tests-" + Guid.NewGuid().ToString("N"));
 
     [TearDown]
     public void TearDown()

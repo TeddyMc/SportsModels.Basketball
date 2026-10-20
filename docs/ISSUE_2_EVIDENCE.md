@@ -9,11 +9,11 @@ Executed on 2026-10-20, on `task/2-nba-play-by-play-json`, based on the reposito
 Commands, with `dotnet` resolving to `/workspace/dotnet/dotnet`:
 
 ```sh
-dotnet build NbaModel.sln --no-restore
-dotnet test NbaModel.sln --no-build --logger 'trx;LogFileName=unit.trx' --results-directory work/test-results
+dotnet build SportsModels.Basketball.sln --no-restore
+dotnet test SportsModels.Basketball.sln --no-build --logger 'trx;LogFileName=unit.trx' --results-directory work/test-results
 ```
 
-Build: succeeded, 0 warnings and 0 errors. Final NUnit result: 22 passed, 0 failed, 0 skipped. The initial run exposed an overly strict cancellation assertion (NUnit required the exact base exception type); it was corrected to accept derived cancellation exceptions, then the complete build and tests were rerun. TRX is generated locally under ignored `work/test-results/unit.trx`.
+Build: succeeded, 0 warnings and 0 errors. Final NUnit result: 22 passed, 0 failed, 0 skipped. The initial run exposed an overly strict cancellation assertion (NUnit required the exact base exception type); it was corrected to accept derived cancellation exceptions, then the complete build and tests were rerun. TRX for the initial run is under ignored `work/test-results/unit.trx`; the naming correction rerun is under `work/test-results/naming-unit.trx`.
 
 Coverage includes:
 
@@ -27,7 +27,7 @@ These are lightweight transport/storage tests, not basketball data quality assur
 ## Manual seven-day live attempt
 
 ```sh
-dotnet run --no-build --project src/NbaModel.PlayByPlay.Host -- 2024-01-01 2024-01-07 work/nba-2024-01-01_07
+dotnet run --no-build --project src/SportsModels.Basketball.Data.Host -- 2024-01-01 2024-01-07 work/nba-2024-01-01_07
 ```
 
 Observed output: seven date-specific `[Http]` failures, each reporting that the configured proxy's CONNECT tunnel failed with HTTP 403; final summary:
@@ -47,3 +47,9 @@ Host exit code: **1**. No game files were created. Direct connectivity probes th
 3. Architecture/readability: verified public entry contracts and Autofac wiring, internal ports/implementations, no Application-to-Infrastructure dependency, no speculative domain model, no basketball-specific action parsing, no downloaded data or credentials tracked.
 
 The pull request references #2 and remains unmerged. This implementation evidence does not mark all acceptance criteria complete; the live retrieval limitation above remains explicit.
+
+## Naming correction after specification update
+
+Merged the updated standards from `origin/master` at `12d4ba6`. The solution is now `SportsModels.Basketball.sln`; projects and assemblies are `SportsModels.Basketball.Data`, `SportsModels.Basketball.Data.Host`, and `SportsModels.Basketball.Data.Tests.Unit`. All ingestion layer namespaces use `SportsModels.Basketball.Data.*`. Project references, the test friend-assembly attribute, host usage, user agent, test temporary-directory prefix and documentation were updated consistently. There are no old namespace roots in source or tests.
+
+The commands above now show the corrected names and were rerun after the rename: `dotnet build SportsModels.Basketball.sln` passed with 0 warnings/errors, and `dotnet test SportsModels.Basketball.sln --no-build` passed all 22 tests (0 failures/skips). The renamed host's seven-day attempt again exited 1 with Discovered=0, Downloaded=0, Skipped=0, Failures=7 due to the same proxy CONNECT 403 restrictions. This rename changes no ingestion behavior. Functional, performance and architecture review found no changes beyond naming/references/documentation; the live retrieval acceptance limitation remains open.

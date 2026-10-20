@@ -1,4 +1,4 @@
-namespace NbaModel.PlayByPlay.Interfaces;
+namespace SportsModels.Basketball.Data.Interfaces;
 
 internal interface INbaSource
 {

@@ -1,12 +1,12 @@
-# NbaModel — official NBA raw play-by-play ingestion
+# SportsModels.Basketball — official NBA raw play-by-play ingestion
 
 Initial implementation of [Issue #2](https://github.com/TeddyMc/SportsModels.Basketball/issues/2).
 Requires the .NET 8 SDK and HTTPS access to NuGet, `stats.nba.com` and `cdn.nba.com`.
 
 ```sh
-dotnet build NbaModel.sln
-dotnet test NbaModel.sln --no-build
-dotnet run --project src/NbaModel.PlayByPlay.Host -- 2024-01-01 2024-01-07 /path/to/nba-json
+dotnet build SportsModels.Basketball.sln
+dotnet test SportsModels.Basketball.sln --no-build
+dotnet run --project src/SportsModels.Basketball.Data.Host -- 2024-01-01 2024-01-07 /path/to/nba-json
 ```
 
 The three positional arguments are start date, end date (both inclusive, `yyyy-MM-dd`), and output directory. The end must be before today in UTC. Discovery uses the NBA's game date, rather than converting dates to the machine's time zone. Exit codes: `0` complete without failures, `1` one or more discovery/download/storage failures, `2` invalid arguments/setup, `130` user cancellation. Each failure identifies its date or game ID and category. The final summary counts unique discovered final games, downloaded files, skipped files, and failures. Failures include discovery dates as well as games, so they are not a count of failed games alone.
@@ -28,9 +28,9 @@ HTTP/transport errors, 30-second request timeouts, invalid JSON and storage fail
 
 ## Structure
 
-- `NbaModel.PlayByPlay`: one pragmatic onion with Contracts, Application, Interfaces, Infrastructure and Autofac folders. There is no basketball domain model in this transport-only task. Application depends on I/O interfaces; Autofac connects HTTP and filesystem implementations via constructor injection.
-- `NbaModel.PlayByPlay.Host`: runnable command and summary/exit codes.
-- `NbaModel.PlayByPlay.Tests.Unit`: fast deterministic NUnit tests, using an HTTP handler stub and isolated temporary directories; no Internet required.
+- `SportsModels.Basketball.Data`: one pragmatic onion with Contracts, Application, Interfaces, Infrastructure and Autofac folders. There is no basketball domain model in this transport-only task. Application depends on I/O interfaces; Autofac connects HTTP and filesystem implementations via constructor injection.
+- `SportsModels.Basketball.Data.Host`: runnable command and summary/exit codes.
+- `SportsModels.Basketball.Data.Tests.Unit`: fast deterministic NUnit tests, using an HTTP handler stub and isolated temporary directories; no Internet required.
 
 Generated output, SDK setup scratch files and test artifacts are ignored by Git. Use an output directory outside the repository or under ignored `work/` or `data/`. No downloaded NBA dataset is included.
 

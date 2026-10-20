@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
-using NbaModel.PlayByPlay.Interfaces;
+using SportsModels.Basketball.Data.Interfaces;
 
-namespace NbaModel.PlayByPlay.Infrastructure;
+namespace SportsModels.Basketball.Data.Infrastructure;
 
 internal sealed class NbaHttpSource(HttpClient client) : INbaSource
 {
@@ -61,7 +61,7 @@ internal sealed class NbaHttpSource(HttpClient client) : INbaSource
     private async Task<byte[]> GetAsync(string url, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.UserAgent.ParseAdd("Mozilla/5.0 NbaModel/1.0");
+        request.Headers.UserAgent.ParseAdd("Mozilla/5.0 SportsModels.Basketball.Data/1.0");
         request.Headers.Referrer = new Uri("https://www.nba.com/");
         request.Headers.Accept.ParseAdd("application/json");
 

@@ -1,10 +1,10 @@
 using Autofac;
-using NbaModel.PlayByPlay.Application;
-using NbaModel.PlayByPlay.Contracts;
-using NbaModel.PlayByPlay.Infrastructure;
-using NbaModel.PlayByPlay.Interfaces;
+using SportsModels.Basketball.Data.Application;
+using SportsModels.Basketball.Data.Contracts;
+using SportsModels.Basketball.Data.Infrastructure;
+using SportsModels.Basketball.Data.Interfaces;
 
-namespace NbaModel.PlayByPlay.Autofac;
+namespace SportsModels.Basketball.Data.Autofac;
 
 public sealed class PlayByPlayModule : Module
 {

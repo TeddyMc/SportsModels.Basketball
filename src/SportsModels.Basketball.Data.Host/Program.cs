@@ -1,13 +1,13 @@
 using System.Globalization;
 using Autofac;
-using NbaModel.PlayByPlay.Autofac;
-using NbaModel.PlayByPlay.Contracts;
+using SportsModels.Basketball.Data.Autofac;
+using SportsModels.Basketball.Data.Contracts;
 
 if (args.Length != 3
     || !DateOnly.TryParseExact(args[0], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start)
     || !DateOnly.TryParseExact(args[1], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end))
 {
-    Console.Error.WriteLine("Usage: NbaModel.PlayByPlay.Host <start:yyyy-MM-dd> <end:yyyy-MM-dd> <output-directory>");
+    Console.Error.WriteLine("Usage: SportsModels.Basketball.Data.Host <start:yyyy-MM-dd> <end:yyyy-MM-dd> <output-directory>");
     return 2;
 }
 
