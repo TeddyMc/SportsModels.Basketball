@@ -1,9 +1,12 @@
-# SportsModels.Basketball — C# coding practices
+# SportsModels — C# coding practices
 
 These are agreed project defaults; apply proportionately to task complexity. Avoid needless abstractions.
 
 ## Architecture
-- **Mandatory namespace/project prefix:** `SportsModels.Basketball`. Name the data-acquisition onion `SportsModels.Basketball.Data` (not `NbaModel.Data` or an unprefixed name). Use `SportsModels.Basketball.Data.Contracts`, `SportsModels.Basketball.Data.Application`, `SportsModels.Basketball.Data.Domain`, `SportsModels.Basketball.Data.Interfaces`, `SportsModels.Basketball.Data.Definitions`, `SportsModels.Basketball.Data.Infrastructure`, `SportsModels.Basketball.Data.Autofac` for corresponding namespaces/folders. Test/host/tool project names use `SportsModels.Basketball.Data.Tests.Unit`, `.Tests.QualityAssurance`, `.Host`, `.Tools` as appropriate. Do not create separate assemblies for each layer unless justified by the onion packaging rules below.
+- **General naming hierarchy:** All project and namespace names start with `SportsModels.` and follow `SportsModels.<Area>.<Component>[.<OnionLayer>]`. Choose the area/component by responsibility rather than by the repository name. Do not use `NbaModel` or `SportsModels.Basketball.Data` as a universal root.
+- **Raw source onions:** `SportsModels.Data.<SourceName>`; official NBA raw data belongs to `SportsModels.Data.NbaOfficial`. Its onion namespaces follow `SportsModels.Data.NbaOfficial.Contracts`, `.Application`, `.Domain`, `.Interfaces`, `.Definitions`, `.Infrastructure`, `.Autofac`. Corresponding optional projects include `SportsModels.Data.NbaOfficial.Tests.Unit`, `.Tests.QualityAssurance`, `.Tools` and `.Host`.
+- **Unified basketball data onion:** `SportsModels.Data.Basketball`, distinct from any source-specific onion; apply the same standard onion layering and test/host/tool conventions. Do not implement this unified model as part of raw-ingestion task #2.
+- Treat these as namespace and responsibility boundaries; don't create a separate assembly for every layer unless justified by packaging requirements below.
 - Use pragmatic onion architecture, with per-function projects or layers: **Contracts, Application, Domain, Interfaces, Definitions, Infrastructure, Autofac**. An onion may initially be one project with these folders.
 - When exposing an onion via NuGet, extract `Xxx.Yyy.MyOnion.Contracts` and `Xxx.Yyy.MyOnion.Autofac` as separate projects/packages.
 - **Contracts:** public service interfaces and public input/output records; favor `get; init;`, few dependencies; communication across onions.
@@ -24,7 +27,7 @@ These are agreed project defaults; apply proportionately to task complexity. Avo
 - Test transport errors, invalid inputs, and reruns as appropriate. Keep heavy domain QA separate from lightweight transport validation.
 
 ## Style
-- Use the exact `SportsModels.Basketball` project/namespace root. `NbaModel` describes style only and must not be used as the namespace root.
+- Follow the `SportsModels.<Area>.<Component>` naming hierarchy consistently. `NbaModel` is not the project/namespace root.
 - Favor clear descriptive names and high-level methods readable as roughly five or six coherent steps, not a rigid count. Extract meaningful independently testable logic, not trivial one-line wrappers.
 - Prefer `var` for locals, primary constructors where appropriate.
 - Blank lines between statements by default, except closely related constructor assignments; no blank line immediately after an opening brace.
