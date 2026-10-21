@@ -1,12 +1,30 @@
 # Issue #2 implementation evidence
 
+## NBA Official / native Stats retrieval — 2026-10-21
+
+This section supersedes earlier endpoint/naming and live-access limitations below. Merged the latest `origin/master` conventions and applied the current issue #2 specification: projects, namespaces, paths, friend-assembly attribute, host and tests now use `SportsModels.Data.NbaOfficial`. The repository solution remains `SportsModels.Basketball.sln`. The user consolidated the proposed #7 transport work into #2; #7 is closed as superseded.
+
+Selected native C# `HttpClient` behind the existing internal `INbaSource` port. The only retrieval behavior change is replacing CDN downloads with `https://stats.nba.com/stats/playbyplayv3?GameID={gameId}&StartPeriod=0&EndPeriod=0`, using the browser headers already proven for discovery. No Python subprocess/dependency/configuration was introduced because the native-first option succeeded. The conditional Python-specific requirements are not applicable. C# still validates JSON syntax and atomically preserves raw response bytes; no basketball schema conversion was added.
+
+Validation:
+
+- `dotnet build SportsModels.Basketball.sln --source https://api.nuget.org/v3/index.json`: passed; final `--no-restore` build passed with zero warnings/errors.
+- `dotnet test SportsModels.Basketball.sln --no-build`: **24 passed, 0 failed, 0 skipped**. Tests distinguish scoreboard/play-by-play by path, verify the exact Stats host/query, and cover HTTP 403/404/429/500, timeouts/cancellation, invalid JSON, byte equality, safe storage and reruns. No network or Python required.
+- `dotnet run --no-build --project src/SportsModels.Data.NbaOfficial.Host -- 2024-01-01 2024-01-01 data/nba-native-stats`: **Discovered=8 Downloaded=8 Skipped=0 Failures=0**, exit 0.
+- `dotnet run --no-build --project src/SportsModels.Data.NbaOfficial.Host -- 2024-01-01 2024-01-07 data/nba-week-stats`: **Discovered=55 Downloaded=55 Skipped=0 Failures=0**, exit 0.
+- Same week command rerun: **Discovered=55 Downloaded=0 Skipped=55 Failures=0**, exit 0. SHA256 comparison of all 55 saved files before/after rerun found **0 changed files**.
+
+Game 0022300451 was downloaded independently into both fresh directories, demonstrating repeated native success; the saved response identifies that game and contains 488 actions. Multiple other discovered games succeeded in both runs. Saved data lives under ignored `data/` and is excluded from commits. Live access used approved unsandboxed networking on the Windows laptop without adding a VPN configuration. Upstream access and historical coverage outside this week are not guaranteed, and JSON syntax validation is not full basketball data QA.
+
+Sequential review: functional review checked endpoint query and adjusted deterministic fixtures to distinguish two Stats paths; performance review confirmed sequential bounded-timeout requests, no new retries or subprocess complexity; architecture review confirmed Application still depends on interfaces, Autofac owns wiring, names match the latest card, and raw bytes/storage policy remain unchanged. Browser version headers may require future maintenance.
+
 ## Windows connectivity update — 2026-10-21
 
 The user reproduced a successful `leaguedashplayerstats` request with Chrome and curl on the Windows laptop without a VPN. The supplied request included a full Chrome 155 user agent, Origin/Referer, language, fetch metadata and client-hint headers. The Stats adapter now uses that header profile for `stats.nba.com` only. The scoreboard query retains its endpoint-specific LeagueID, DayOffset and GameDate parameters; the player-statistics query parameters do not apply to scoreboard discovery. No cookies or credentials are required or stored. Which individual header caused the improvement has not been isolated.
 
 Validation: `dotnet build SportsModels.Basketball.sln --source https://api.nuget.org/v3/index.json` passed with zero warnings/errors; `dotnet test SportsModels.Basketball.sln --no-build` passed all 23 tests. Public NuGet was selected explicitly because the machine's inherited private feed previously returned 401. The added test checks Stats headers and their exclusion from CDN requests.
 
-Live command: `dotnet run --no-build --project src/SportsModels.Basketball.Data.Host -- 2024-01-01 2024-01-01 data/nba-header-smoke`.
+Live command: `dotnet run --no-build --project src/SportsModels.Data.NbaOfficial.Host -- 2024-01-01 2024-01-01 data/nba-header-smoke`.
 
 Result: **Discovered=8 Downloaded=0 Skipped=0 Failures=8**, exit 1. Scoreboard discovery succeeded and returned IDs 0022300451 through 0022300458. All eight CDN play-by-play requests returned HTTP 403. A separate curl probe for 0022300451 with Chrome User-Agent, Origin, Referer, Accept and language headers also returned 403. No JSON files were saved. This verifies live daily discovery but does not establish reliable end-to-end ingestion or resolve the remaining CDN failure. Week retrieval and successful rerun evidence remain outstanding.
 
@@ -39,7 +57,7 @@ These are lightweight transport/storage tests, not basketball data quality assur
 ## Manual seven-day live attempt
 
 ```sh
-dotnet run --no-build --project src/SportsModels.Basketball.Data.Host -- 2024-01-01 2024-01-07 work/nba-2024-01-01_07
+dotnet run --no-build --project src/SportsModels.Data.NbaOfficial.Host -- 2024-01-01 2024-01-07 work/nba-2024-01-01_07
 ```
 
 Observed output: seven date-specific `[Http]` failures, each reporting that the configured proxy's CONNECT tunnel failed with HTTP 403; final summary:
@@ -62,6 +80,6 @@ The pull request references #2 and remains unmerged. This implementation evidenc
 
 ## Naming correction after specification update
 
-Merged the updated standards from `origin/master` at `12d4ba6`. The solution is now `SportsModels.Basketball.sln`; projects and assemblies are `SportsModels.Basketball.Data`, `SportsModels.Basketball.Data.Host`, and `SportsModels.Basketball.Data.Tests.Unit`. All ingestion layer namespaces use `SportsModels.Basketball.Data.*`. Project references, the test friend-assembly attribute, host usage, user agent, test temporary-directory prefix and documentation were updated consistently. There are no old namespace roots in source or tests.
+Merged the updated standards from `origin/master` at `12d4ba6`. The solution is now `SportsModels.Basketball.sln`; projects and assemblies are `SportsModels.Data.NbaOfficial`, `SportsModels.Data.NbaOfficial.Host`, and `SportsModels.Data.NbaOfficial.Tests.Unit`. All ingestion layer namespaces use `SportsModels.Data.NbaOfficial.*`. Project references, the test friend-assembly attribute, host usage, user agent, test temporary-directory prefix and documentation were updated consistently. There are no old namespace roots in source or tests.
 
 The commands above now show the corrected names and were rerun after the rename: `dotnet build SportsModels.Basketball.sln` passed with 0 warnings/errors, and `dotnet test SportsModels.Basketball.sln --no-build` passed all 22 tests (0 failures/skips). The renamed host's seven-day attempt again exited 1 with Discovered=0, Downloaded=0, Skipped=0, Failures=7 due to the same proxy CONNECT 403 restrictions. This rename changes no ingestion behavior. Functional, performance and architecture review found no changes beyond naming/references/documentation; the live retrieval acceptance limitation remains open.

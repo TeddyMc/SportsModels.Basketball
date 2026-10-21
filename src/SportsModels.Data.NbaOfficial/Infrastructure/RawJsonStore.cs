@@ -1,7 +1,7 @@
 using System.Text.Json;
-using SportsModels.Basketball.Data.Interfaces;
+using SportsModels.Data.NbaOfficial.Interfaces;
 
-namespace SportsModels.Basketball.Data.Infrastructure;
+namespace SportsModels.Data.NbaOfficial.Infrastructure;
 
 internal sealed class RawJsonStore : IRawJsonStore
 {

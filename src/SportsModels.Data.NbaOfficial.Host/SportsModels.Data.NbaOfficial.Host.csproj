@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../SportsModels.Data.NbaOfficial/SportsModels.Data.NbaOfficial.csproj" /></ItemGroup>
+</Project>

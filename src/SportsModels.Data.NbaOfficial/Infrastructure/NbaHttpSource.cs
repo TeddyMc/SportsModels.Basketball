@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
-using SportsModels.Basketball.Data.Interfaces;
+using SportsModels.Data.NbaOfficial.Interfaces;
 
-namespace SportsModels.Basketball.Data.Infrastructure;
+namespace SportsModels.Data.NbaOfficial.Infrastructure;
 
 internal sealed class NbaHttpSource(HttpClient client) : INbaSource
 {
@@ -56,33 +56,25 @@ internal sealed class NbaHttpSource(HttpClient client) : INbaSource
     }
 
     public Task<byte[]> DownloadAsync(string gameId, CancellationToken cancellationToken) =>
-        GetAsync($"https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{gameId}.json", cancellationToken);
+        GetAsync($"https://stats.nba.com/stats/playbyplayv3?GameID={gameId}&StartPeriod=0&EndPeriod=0", cancellationToken);
 
     private async Task<byte[]> GetAsync(string url, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Referrer = new Uri("https://www.nba.com/");
 
-        if (request.RequestUri!.Host == "stats.nba.com")
-        {
-            // Match the browser request reproduced successfully with curl on Windows.
-            request.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36");
-            request.Headers.Accept.ParseAdd("*/*");
-            request.Headers.AcceptLanguage.ParseAdd("en-IE,en-GB;q=0.9,en-US;q=0.8,en;q=0.7");
-            request.Headers.Connection.Add("keep-alive");
-            request.Headers.Add("Origin", "https://www.nba.com");
-            request.Headers.Add("Sec-Fetch-Dest", "empty");
-            request.Headers.Add("Sec-Fetch-Mode", "cors");
-            request.Headers.Add("Sec-Fetch-Site", "same-site");
-            request.Headers.Add("sec-ch-ua", "\"Google Chrome\";v=\"155\", \"Chromium\";v=\"155\", \"Not(A:Brand\";v=\"24\"");
-            request.Headers.Add("sec-ch-ua-mobile", "?0");
-            request.Headers.Add("sec-ch-ua-platform", "\"Windows\"");
-        }
-        else
-        {
-            request.Headers.UserAgent.ParseAdd("Mozilla/5.0 SportsModels.Basketball.Data/1.0");
-            request.Headers.Accept.ParseAdd("application/json");
-        }
+        // Match the browser request reproduced successfully with curl on Windows.
+        request.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36");
+        request.Headers.Accept.ParseAdd("*/*");
+        request.Headers.AcceptLanguage.ParseAdd("en-IE,en-GB;q=0.9,en-US;q=0.8,en;q=0.7");
+        request.Headers.Connection.Add("keep-alive");
+        request.Headers.Add("Origin", "https://www.nba.com");
+        request.Headers.Add("Sec-Fetch-Dest", "empty");
+        request.Headers.Add("Sec-Fetch-Mode", "cors");
+        request.Headers.Add("Sec-Fetch-Site", "same-site");
+        request.Headers.Add("sec-ch-ua", "\"Google Chrome\";v=\"155\", \"Chromium\";v=\"155\", \"Not(A:Brand\";v=\"24\"");
+        request.Headers.Add("sec-ch-ua-mobile", "?0");
+        request.Headers.Add("sec-ch-ua-platform", "\"Windows\"");
 
         using var response = await client.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();

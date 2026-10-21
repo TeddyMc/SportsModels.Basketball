@@ -1,8 +1,8 @@
 using System.Text.Json;
-using SportsModels.Basketball.Data.Contracts;
-using SportsModels.Basketball.Data.Interfaces;
+using SportsModels.Data.NbaOfficial.Contracts;
+using SportsModels.Data.NbaOfficial.Interfaces;
 
-namespace SportsModels.Basketball.Data.Application;
+namespace SportsModels.Data.NbaOfficial.Application;
 
 internal sealed class PlayByPlayIngestion(INbaSource source, IRawJsonStore store) : IPlayByPlayIngestion
 {
