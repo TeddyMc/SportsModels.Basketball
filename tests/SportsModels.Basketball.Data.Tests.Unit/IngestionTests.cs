@@ -90,6 +90,42 @@ public sealed class IngestionTests
     }
 
     [Test]
+    public async Task StatsRequests_UseBrowserHeaders_WithoutSendingThemToCdn()
+    {
+        using var client = CreateClient((request, _) =>
+        {
+            var isStats = request.RequestUri!.Host == "stats.nba.com";
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(request.Headers.Referrer!.AbsoluteUri, Is.EqualTo("https://www.nba.com/"));
+                Assert.That(request.Headers.Contains("Origin"), Is.EqualTo(isStats));
+                Assert.That(request.Headers.Contains("Sec-Fetch-Mode"), Is.EqualTo(isStats));
+                Assert.That(request.Headers.Contains("sec-ch-ua"), Is.EqualTo(isStats));
+            });
+
+            if (isStats)
+            {
+                Assert.Multiple(() =>
+                {
+                    Assert.That(request.Headers.GetValues("Origin").Single(), Is.EqualTo("https://www.nba.com"));
+                    Assert.That(request.Headers.GetValues("Sec-Fetch-Mode").Single(), Is.EqualTo("cors"));
+                    Assert.That(request.Headers.UserAgent.ToString(), Does.Contain("Chrome/155.0.0.0"));
+                    Assert.That(request.Headers.Accept.ToString(), Is.EqualTo("*/*"));
+                    Assert.That(request.Headers.AcceptLanguage.ToString(), Does.Contain("en-IE"));
+                });
+            }
+
+            return Task.FromResult(Json(isStats ? Schedule($"[\"{GameId}\",3]") : "{}"));
+        });
+
+        var result = await Service(client).RunAsync(Request());
+
+        Assert.That(result.Downloaded, Is.EqualTo(1));
+        Assert.That(result.Failed, Is.Zero);
+    }
+
+    [Test]
     public async Task TransportFailure_IsCounted()
     {
         using var client = CreateClient((_, _) => throw new HttpRequestException("Connection failed"));

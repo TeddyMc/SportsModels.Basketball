@@ -1,5 +1,17 @@
 # Issue #2 implementation evidence
 
+## Windows connectivity update — 2026-10-21
+
+The user reproduced a successful `leaguedashplayerstats` request with Chrome and curl on the Windows laptop without a VPN. The supplied request included a full Chrome 155 user agent, Origin/Referer, language, fetch metadata and client-hint headers. The Stats adapter now uses that header profile for `stats.nba.com` only. The scoreboard query retains its endpoint-specific LeagueID, DayOffset and GameDate parameters; the player-statistics query parameters do not apply to scoreboard discovery. No cookies or credentials are required or stored. Which individual header caused the improvement has not been isolated.
+
+Validation: `dotnet build SportsModels.Basketball.sln --source https://api.nuget.org/v3/index.json` passed with zero warnings/errors; `dotnet test SportsModels.Basketball.sln --no-build` passed all 23 tests. Public NuGet was selected explicitly because the machine's inherited private feed previously returned 401. The added test checks Stats headers and their exclusion from CDN requests.
+
+Live command: `dotnet run --no-build --project src/SportsModels.Basketball.Data.Host -- 2024-01-01 2024-01-01 data/nba-header-smoke`.
+
+Result: **Discovered=8 Downloaded=0 Skipped=0 Failures=8**, exit 1. Scoreboard discovery succeeded and returned IDs 0022300451 through 0022300458. All eight CDN play-by-play requests returned HTTP 403. A separate curl probe for 0022300451 with Chrome User-Agent, Origin, Referer, Accept and language headers also returned 403. No JSON files were saved. This verifies live daily discovery but does not establish reliable end-to-end ingestion or resolve the remaining CDN failure. Week retrieval and successful rerun evidence remain outstanding.
+
+Sequential review: the change is confined to infrastructure request headers; no new domain behavior, retry loops, architecture changes or additional data endpoints. Response validation, byte preservation, cancellation and per-request timeout behavior remain covered by the existing tests. Browser version headers reflect the supplied working request and may need maintenance as upstream requirements change.
+
 Executed on 2026-10-20, on `task/2-nba-play-by-play-json`, based on the repository's default branch `master` at `e30a5b3`. The repository has no `main` branch. No other open PRs were present when implementation began. Issue #2 records **Ready for Implementation (approved)**; its referenced feature #5 and epic #4 were read. There are no issue comments or native parent relationship on #2.
 
 ## Build and unit tests
