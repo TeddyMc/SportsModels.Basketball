@@ -1,0 +1,42 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A1EDE1A8-F8C9-4CFE-AA67-A1ACA04659FD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SportsModels.Data.NbaOfficial", "src\SportsModels.Data.NbaOfficial\SportsModels.Data.NbaOfficial.csproj", "{5A313B59-76C3-4636-96AC-CE148DED83CD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SportsModels.Data.NbaOfficial.Host", "src\SportsModels.Data.NbaOfficial.Host\SportsModels.Data.NbaOfficial.Host.csproj", "{8D17734B-0AA5-4433-9E16-6B768EB7F8AA}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{5E69DFEC-9445-47CB-904F-C2FFFC50A7FC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SportsModels.Data.NbaOfficial.Tests.Unit", "tests\SportsModels.Data.NbaOfficial.Tests.Unit\SportsModels.Data.NbaOfficial.Tests.Unit.csproj", "{61F03CAB-7BDA-45F9-A6DC-68E1A1C50C39}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5A313B59-76C3-4636-96AC-CE148DED83CD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5A313B59-76C3-4636-96AC-CE148DED83CD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5A313B59-76C3-4636-96AC-CE148DED83CD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5A313B59-76C3-4636-96AC-CE148DED83CD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8D17734B-0AA5-4433-9E16-6B768EB7F8AA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8D17734B-0AA5-4433-9E16-6B768EB7F8AA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8D17734B-0AA5-4433-9E16-6B768EB7F8AA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8D17734B-0AA5-4433-9E16-6B768EB7F8AA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{61F03CAB-7BDA-45F9-A6DC-68E1A1C50C39}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{61F03CAB-7BDA-45F9-A6DC-68E1A1C50C39}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{61F03CAB-7BDA-45F9-A6DC-68E1A1C50C39}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{61F03CAB-7BDA-45F9-A6DC-68E1A1C50C39}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{5A313B59-76C3-4636-96AC-CE148DED83CD} = {A1EDE1A8-F8C9-4CFE-AA67-A1ACA04659FD}
+		{8D17734B-0AA5-4433-9E16-6B768EB7F8AA} = {A1EDE1A8-F8C9-4CFE-AA67-A1ACA04659FD}
+		{61F03CAB-7BDA-45F9-A6DC-68E1A1C50C39} = {5E69DFEC-9445-47CB-904F-C2FFFC50A7FC}
+	EndGlobalSection
+EndGlobal
