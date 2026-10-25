@@ -5,6 +5,7 @@ using SportsModels.Data.NbaOfficial.Application;
 using SportsModels.Data.NbaOfficial.Autofac;
 using SportsModels.Data.NbaOfficial.Contracts;
 using SportsModels.Data.NbaOfficial.Infrastructure;
+using SportsModels.Data.NbaOfficial.Definitions;
 using NUnit.Framework;
 
 namespace SportsModels.Data.NbaOfficial.Tests.Unit;
@@ -15,6 +16,7 @@ public sealed class IngestionTests
     private string directory = null!;
     private static readonly DateOnly Start = new(2024, 1, 1);
     private const string GameId = "0022300001";
+    private static readonly NbaGame SampleGame = new(GameId, Start, "BOS", "NYK");
 
     [SetUp]
     public void SetUp() => directory = Path.Combine(Path.GetTempPath(), "SportsModels.Data.NbaOfficial-tests-" + Guid.NewGuid().ToString("N"));
@@ -38,7 +40,7 @@ public sealed class IngestionTests
             var uri = request.RequestUri!;
             requested.Add(uri);
 
-            return Task.FromResult(uri.AbsolutePath == "/stats/scoreboardv2"
+            return Task.FromResult(uri.AbsolutePath == "/stats/scoreboardv3"
                 ? Json(Schedule($"[\"{GameId}\",3],[\"{GameId}\",3],[\"0022300002\",2]"))
                 : new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(raw) });
         });
@@ -56,11 +58,11 @@ public sealed class IngestionTests
             Assert.That(second.Skipped, Is.EqualTo(1));
             Assert.That(second.Downloaded, Is.Zero);
             Assert.That(second.Failed, Is.Zero);
-            Assert.That(File.ReadAllBytes(Path.Combine(directory, GameId + ".json")), Is.EqualTo(raw));
-            Assert.That(requested.Count(uri => uri.AbsolutePath == "/stats/scoreboardv2"), Is.EqualTo(14));
+            Assert.That(File.ReadAllBytes(Path.Combine(directory, SampleGame.FileName)), Is.EqualTo(raw));
+            Assert.That(requested.Count(uri => uri.AbsolutePath == "/stats/scoreboardv3"), Is.EqualTo(14));
             Assert.That(requested.Count(uri => uri.AbsolutePath == "/stats/playbyplayv3"), Is.EqualTo(1));
-            Assert.That(Uri.UnescapeDataString(requested[0].Query), Does.Contain("GameDate=01/01/2024"));
-            Assert.That(Uri.UnescapeDataString(requested[6].Query), Does.Contain("GameDate=01/07/2024"));
+            Assert.That(Uri.UnescapeDataString(requested[0].Query), Does.Contain("GameDate=2024-01-01"));
+            Assert.That(Uri.UnescapeDataString(requested[6].Query), Does.Contain("GameDate=2024-01-07"));
             Assert.That(requested[7].AbsolutePath, Is.EqualTo("/stats/playbyplayv3"));
             Assert.That(requested[7].Host, Is.EqualTo("stats.nba.com"));
             Assert.That(requested[7].Query, Is.EqualTo($"?GameID={GameId}&StartPeriod=0&EndPeriod=0"));
@@ -74,7 +76,7 @@ public sealed class IngestionTests
     [TestCase(500)]
     public async Task HttpFailure_IsCounted_AndLaterGameStillDownloads(int status)
     {
-        using var client = CreateClient((request, _) => Task.FromResult(request.RequestUri!.AbsolutePath == "/stats/scoreboardv2"
+        using var client = CreateClient((request, _) => Task.FromResult(request.RequestUri!.AbsolutePath == "/stats/scoreboardv3"
             ? Json(Schedule($"[\"{GameId}\",3],[\"0022300002\",3]"))
             : request.RequestUri.Query.Contains(GameId)
                 ? new HttpResponseMessage((HttpStatusCode)status)
@@ -88,7 +90,7 @@ public sealed class IngestionTests
             Assert.That(result.Downloaded, Is.EqualTo(1));
             Assert.That(result.Failed, Is.EqualTo(1));
             Assert.That(result.Failures[0].Kind, Is.EqualTo(FailureKind.Http));
-            Assert.That(File.Exists(Path.Combine(directory, GameId + ".json")), Is.False);
+            Assert.That(File.Exists(Path.Combine(directory, SampleGame.FileName)), Is.False);
         });
     }
 
@@ -119,7 +121,7 @@ public sealed class IngestionTests
                 });
             }
 
-            return Task.FromResult(Json(request.RequestUri!.AbsolutePath == "/stats/scoreboardv2" ? Schedule($"[\"{GameId}\",3]") : "{}"));
+            return Task.FromResult(Json(request.RequestUri!.AbsolutePath == "/stats/scoreboardv3" ? Schedule($"[\"{GameId}\",3]") : "{}"));
         });
 
         var result = await Service(client).RunAsync(Request());
@@ -158,7 +160,7 @@ public sealed class IngestionTests
     {
         using var client = CreateClient(async (request, token) =>
         {
-            if (request.RequestUri!.AbsolutePath == "/stats/scoreboardv2")
+            if (request.RequestUri!.AbsolutePath == "/stats/scoreboardv3")
             {
                 return Json(Schedule($"[\"{GameId}\",3]"));
             }
@@ -205,7 +207,7 @@ public sealed class IngestionTests
     public async Task InvalidExistingFile_IsPreserved_AndNotDownloaded()
     {
         Directory.CreateDirectory(directory);
-        var path = Path.Combine(directory, GameId + ".json");
+        var path = Path.Combine(directory, SampleGame.FileName);
         await File.WriteAllTextAsync(path, "broken");
         var downloads = 0;
         using var client = CreateClient((request, _) =>
@@ -298,13 +300,63 @@ public sealed class IngestionTests
     public async Task StoreNeverOverwrites_AndCleansTemporaryFile()
     {
         var store = new RawJsonStore();
-        await store.SaveAsync(directory, GameId, "{}"u8.ToArray(), default);
+        await store.SaveAsync(directory, SampleGame, "{}"u8.ToArray(), default);
 
         Assert.ThrowsAsync<IOException>(async () =>
-            await store.SaveAsync(directory, GameId, "[]"u8.ToArray(), default));
+            await store.SaveAsync(directory, SampleGame, "[]"u8.ToArray(), default));
 
-        Assert.That(await File.ReadAllTextAsync(Path.Combine(directory, GameId + ".json")), Is.EqualTo("{}"));
+        Assert.That(await File.ReadAllTextAsync(Path.Combine(directory, SampleGame.FileName)), Is.EqualTo("{}"));
         Assert.That(Directory.GetFiles(directory), Has.Length.EqualTo(1));
+    }
+
+    [Test]
+    public async Task ScoreboardV3_PreservesEachMatchup_AndIgnoresNonFinalGames()
+    {
+        const string scoreboard = """
+            {"scoreboard":{"games":[
+              {"gameId":"0022500713","gameStatus":3,"awayTeam":{"teamTricode":"HOU"},"homeTeam":{"teamTricode":"IND"}},
+              {"gameId":"0022500715","gameStatus":3,"awayTeam":{"teamTricode":"PHI"},"homeTeam":{"teamTricode":"LAC"}},
+              {"gameId":"0022500716","gameStatus":1}
+            ]}}
+            """;
+        using var client = CreateClient((_, _) => Task.FromResult(Json(scoreboard)));
+        var source = new NbaHttpSource(client);
+
+        var games = await source.DiscoverAsync(new DateOnly(2026, 2, 2), default);
+
+        Assert.That(games.Select(game => game.FileName), Is.EquivalentTo(new[]
+        {
+            "HOU@IND_20260202_0022500713.json", "PHI@LAC_20260202_0022500715.json"
+        }));
+    }
+
+    [Test]
+    public void FileName_UsesAwayHomeDateAndStableId()
+    {
+        Assert.That(new NbaGame("0022500001", new DateOnly(2026, 2, 2), "BOS", "NYK").FileName,
+            Is.EqualTo("BOS@NYK_20260202_0022500001.json"));
+    }
+
+    [TestCase("../BOS", "NYK")]
+    [TestCase("BOS", "NY/K")]
+    [TestCase("bos", "NYK")]
+    [TestCase("BOS", "BOS")]
+    public void FileName_RejectsUnsafeOrAmbiguousTeams(string away, string home)
+    {
+        Assert.Throws<InvalidDataException>(() => _ = new NbaGame(GameId, Start, away, home).FileName);
+    }
+
+    [TestCase("homeTeam", "missingHome")]
+    [TestCase("teamTricode", "missingCode")]
+    [TestCase("NYK", "../NYK")]
+    public async Task InvalidTeamMetadata_IsReportedBeforeSaving(string original, string replacement)
+    {
+        using var client = CreateClient((_, _) => Task.FromResult(Json(Schedule($"[\"{GameId}\",3]").Replace(original, replacement))));
+
+        var result = await Service(client).RunAsync(Request());
+
+        Assert.That(result.Failures.Single().Kind, Is.EqualTo(FailureKind.Discovery));
+        Assert.That(Directory.Exists(directory), Is.False);
     }
 
     [Test]
@@ -322,8 +374,19 @@ public sealed class IngestionTests
 
     private static PlayByPlayIngestion Service(HttpClient client) => new(new NbaHttpSource(client), new RawJsonStore());
 
-    private static string Schedule(string rows) =>
-        "{\"resultSets\":[{\"name\":\"GameHeader\",\"headers\":[\"GAME_ID\",\"GAME_STATUS_ID\"],\"rowSet\":[" + rows + "]}]}";
+    private static string Schedule(string rows)
+    {
+        using var document = System.Text.Json.JsonDocument.Parse("[" + rows + "]");
+        var games = document.RootElement.EnumerateArray().Select(row => new
+        {
+            gameId = row[0].GetString(),
+            gameStatus = row[1].GetInt32(),
+            homeTeam = new { teamTricode = "NYK" },
+            awayTeam = new { teamTricode = "BOS" }
+        }).ToArray();
+
+        return System.Text.Json.JsonSerializer.Serialize(new { scoreboard = new { games } });
+    }
 
     private static HttpResponseMessage Json(string content) => new(HttpStatusCode.OK)
     {
@@ -331,7 +394,7 @@ public sealed class IngestionTests
     };
 
     private static HttpClient OneGameClient(string body) => CreateClient((request, _) =>
-        Task.FromResult(Json(request.RequestUri!.AbsolutePath == "/stats/scoreboardv2" ? Schedule($"[\"{GameId}\",3]") : body)));
+        Task.FromResult(Json(request.RequestUri!.AbsolutePath == "/stats/scoreboardv3" ? Schedule($"[\"{GameId}\",3]") : body)));
 
     private static HttpClient CreateClient(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> respond) =>
         new(new StubHandler(respond));

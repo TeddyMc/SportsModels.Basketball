@@ -3,11 +3,13 @@ using Autofac;
 using SportsModels.Data.NbaOfficial.Autofac;
 using SportsModels.Data.NbaOfficial.Contracts;
 
-if (args.Length != 3
+const string DefaultOutputDirectory = @"C:\Data\Basketball\NbaOfficial\stats\playbyplayv3";
+
+if (args.Length is < 2 or > 3
     || !DateOnly.TryParseExact(args[0], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start)
     || !DateOnly.TryParseExact(args[1], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end))
 {
-    Console.Error.WriteLine("Usage: SportsModels.Data.NbaOfficial.Host <start:yyyy-MM-dd> <end:yyyy-MM-dd> <output-directory>");
+    Console.Error.WriteLine($"Usage: SportsModels.Data.NbaOfficial.Host <start:yyyy-MM-dd> <end:yyyy-MM-dd> [output-directory; default {DefaultOutputDirectory}]");
     return 2;
 }
 
@@ -26,7 +28,7 @@ try
     using var container = builder.Build();
 
     var result = await container.Resolve<IPlayByPlayIngestion>()
-        .RunAsync(new IngestionRequest(start, end, args[2]), cancellation.Token);
+        .RunAsync(new IngestionRequest(start, end, args.Length == 3 ? args[2] : DefaultOutputDirectory), cancellation.Token);
 
     foreach (var failure in result.Failures)
     {

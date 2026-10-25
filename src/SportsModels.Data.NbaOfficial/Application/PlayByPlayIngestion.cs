@@ -1,5 +1,6 @@
 using System.Text.Json;
 using SportsModels.Data.NbaOfficial.Contracts;
+using SportsModels.Data.NbaOfficial.Definitions;
 using SportsModels.Data.NbaOfficial.Interfaces;
 
 namespace SportsModels.Data.NbaOfficial.Application;
@@ -18,7 +19,7 @@ internal sealed class PlayByPlayIngestion(INbaSource source, IRawJsonStore store
 
         var directory = Path.GetFullPath(request.OutputPath);
         var failures = new List<IngestionFailure>();
-        var gameIds = new SortedSet<string>(StringComparer.Ordinal);
+        var games = new SortedDictionary<string, NbaGame>(StringComparer.Ordinal);
 
         for (var date = request.StartDate; date <= request.EndDate; date = date.AddDays(1))
         {
@@ -26,7 +27,16 @@ internal sealed class PlayByPlayIngestion(INbaSource source, IRawJsonStore store
 
             try
             {
-                gameIds.UnionWith(await source.DiscoverAsync(date, cancellationToken));
+                foreach (var game in await source.DiscoverAsync(date, cancellationToken))
+                {
+                    if (games.TryGetValue(game.GameId, out var previous)
+                        && (previous.AwayTeam != game.AwayTeam || previous.HomeTeam != game.HomeTeam))
+                    {
+                        throw new InvalidDataException($"Conflicting metadata for game {game.GameId}.");
+                    }
+
+                    games.TryAdd(game.GameId, game);
+                }
             }
             catch (Exception exception) when (IsRecoverable(exception, cancellationToken))
             {
@@ -37,33 +47,33 @@ internal sealed class PlayByPlayIngestion(INbaSource source, IRawJsonStore store
         var downloaded = 0;
         var skipped = 0;
 
-        foreach (var gameId in gameIds)
+        foreach (var game in games.Values)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             try
             {
-                if (await store.ExistsAsync(directory, gameId, cancellationToken))
+                if (await store.ExistsAsync(directory, game, cancellationToken))
                 {
                     skipped++;
                     continue;
                 }
 
-                var bytes = await source.DownloadAsync(gameId, cancellationToken);
+                var bytes = await source.DownloadAsync(game.GameId, cancellationToken);
 
                 // Validate syntax only; never transform the raw response.
                 using var json = JsonDocument.Parse(bytes);
 
-                await store.SaveAsync(directory, gameId, bytes, cancellationToken);
+                await store.SaveAsync(directory, game, bytes, cancellationToken);
                 downloaded++;
             }
             catch (Exception exception) when (IsRecoverable(exception, cancellationToken))
             {
-                failures.Add(ToFailure(gameId, exception));
+                failures.Add(ToFailure(game.GameId, exception));
             }
         }
 
-        return new IngestionResult(gameIds.Count, downloaded, skipped, failures.AsReadOnly());
+        return new IngestionResult(games.Count, downloaded, skipped, failures.AsReadOnly());
     }
 
     private static bool IsRecoverable(Exception exception, CancellationToken cancellationToken) =>

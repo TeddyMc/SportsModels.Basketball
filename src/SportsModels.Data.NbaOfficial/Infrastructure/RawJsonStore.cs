@@ -1,13 +1,14 @@
 using System.Text.Json;
+using SportsModels.Data.NbaOfficial.Definitions;
 using SportsModels.Data.NbaOfficial.Interfaces;
 
 namespace SportsModels.Data.NbaOfficial.Infrastructure;
 
 internal sealed class RawJsonStore : IRawJsonStore
 {
-    public async Task<bool> ExistsAsync(string directory, string gameId, CancellationToken cancellationToken)
+    public async Task<bool> ExistsAsync(string directory, NbaGame game, CancellationToken cancellationToken)
     {
-        var path = GetPath(directory, gameId);
+        var path = Path.Combine(directory, game.FileName);
 
         try
         {
@@ -26,12 +27,12 @@ internal sealed class RawJsonStore : IRawJsonStore
         }
     }
 
-    public async Task SaveAsync(string directory, string gameId, byte[] bytes, CancellationToken cancellationToken)
+    public async Task SaveAsync(string directory, NbaGame game, byte[] bytes, CancellationToken cancellationToken)
     {
-        var destination = GetPath(directory, gameId);
+        var destination = Path.Combine(directory, game.FileName);
         Directory.CreateDirectory(directory);
 
-        var temporary = Path.Combine(directory, $".{gameId}.{Guid.NewGuid():N}.tmp");
+        var temporary = Path.Combine(directory, $".{game.GameId}.{Guid.NewGuid():N}.tmp");
 
         try
         {
@@ -43,15 +44,5 @@ internal sealed class RawJsonStore : IRawJsonStore
         {
             File.Delete(temporary);
         }
-    }
-
-    private static string GetPath(string directory, string gameId)
-    {
-        if (gameId.Length != 10 || !gameId.All(character => character is >= '0' and <= '9'))
-        {
-            throw new InvalidDataException("Expected a ten-digit NBA game ID.");
-        }
-
-        return Path.Combine(directory, gameId + ".json");
     }
 }

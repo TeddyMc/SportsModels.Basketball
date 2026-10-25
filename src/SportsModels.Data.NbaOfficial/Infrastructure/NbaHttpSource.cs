@@ -1,52 +1,52 @@
 using System.Globalization;
 using System.Text.Json;
+using SportsModels.Data.NbaOfficial.Definitions;
 using SportsModels.Data.NbaOfficial.Interfaces;
 
 namespace SportsModels.Data.NbaOfficial.Infrastructure;
 
 internal sealed class NbaHttpSource(HttpClient client) : INbaSource
 {
-    public async Task<IReadOnlyList<string>> DiscoverAsync(DateOnly date, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<NbaGame>> DiscoverAsync(DateOnly date, CancellationToken cancellationToken)
     {
-        var url = "https://stats.nba.com/stats/scoreboardv2?LeagueID=00&DayOffset=0&GameDate="
-            + Uri.EscapeDataString(date.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture));
+        var url = "https://stats.nba.com/stats/scoreboardv3?LeagueID=00&GameDate="
+            + date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var bytes = await GetAsync(url, cancellationToken);
 
         using var document = JsonDocument.Parse(bytes);
 
         try
         {
-            var header = document.RootElement.GetProperty("resultSets").EnumerateArray()
-                .Single(set => set.GetProperty("name").GetString() == "GameHeader");
-            var columns = header.GetProperty("headers").EnumerateArray().Select(value => value.GetString()).ToList();
-            var idColumn = columns.IndexOf("GAME_ID");
-            var statusColumn = columns.IndexOf("GAME_STATUS_ID");
+            var games = new Dictionary<string, NbaGame>(StringComparer.Ordinal);
 
-            if (idColumn < 0 || statusColumn < 0)
+            foreach (var row in document.RootElement.GetProperty("scoreboard").GetProperty("games").EnumerateArray())
             {
-                throw new InvalidDataException("GameHeader is missing GAME_ID or GAME_STATUS_ID.");
-            }
-
-            var ids = new SortedSet<string>(StringComparer.Ordinal);
-
-            foreach (var row in header.GetProperty("rowSet").EnumerateArray())
-            {
-                if (row[statusColumn].GetInt32() != 3)
+                if (row.GetProperty("gameStatus").GetInt32() != 3)
                 {
                     continue;
                 }
 
-                var gameId = row[idColumn].GetString();
+                var gameId = row.GetProperty("gameId").GetString();
+                var home = row.GetProperty("homeTeam").GetProperty("teamTricode").GetString();
+                var away = row.GetProperty("awayTeam").GetProperty("teamTricode").GetString();
 
-                if (gameId is null || gameId.Length != 10 || !gameId.All(character => character is >= '0' and <= '9'))
+                if (gameId is null || home is null || away is null)
                 {
-                    throw new InvalidDataException("Final game has an invalid stable game ID.");
+                    throw new InvalidDataException("Final game has missing identity or team metadata.");
                 }
 
-                ids.Add(gameId);
+                var game = new NbaGame(gameId, date, away, home);
+                _ = game.FileName;
+
+                if (games.TryGetValue(gameId, out var previous) && previous != game)
+                {
+                    throw new InvalidDataException("Conflicting metadata for a repeated game ID.");
+                }
+
+                games[gameId] = game;
             }
 
-            return ids.ToArray();
+            return games.Values.ToArray();
         }
         catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException
             or IndexOutOfRangeException or ArgumentOutOfRangeException or FormatException)

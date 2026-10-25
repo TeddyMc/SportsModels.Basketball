@@ -1,5 +1,25 @@
 # Issue #2 implementation evidence
 
+## Matchup/date storage and full-season execution — 2026-10-21
+
+User requested removal of the previous local `data/` directory. The resolved deletion target and lack of reparse points were verified before recursively removing its 63 files. Season execution initially wrote to the ignored repository-local `NbaOfficial/PlayByPlay` folder; the user then corrected the destination to `C:\Data\Basketball\NbaOfficial` and delegated endpoint/version folder naming.
+
+Host output now defaults to **`C:\Data\Basketball\NbaOfficial\stats\playbyplayv3`**, with the optional third CLI argument retaining explicit overrides (including for non-Windows environments). Filenames use `AWAY@HOME_yyyyMMdd_{gameId}.json`, for example `HOU@IND_20260202_0022500713.json`. Internal discovery metadata carries game ID, queried NBA date and upstream home/away team codes. Storage validates safe filename components, retains raw response bytes and uses the same atomic, non-overwriting writes and skip policy.
+
+The season run exposed a material legacy discovery limitation: `scoreboardv2` returned no final games for October/November 2025 and incomplete later results. Stopped that attempt and switched to native `scoreboardv3?LeagueID=00&GameDate=yyyy-MM-dd`, parsing `scoreboard.games` (`gameStatus=3`, `gameId`, `awayTeam.teamTricode`, `homeTeam.teamTricode`). A direct v3 opening-night probe returned finals, and the October 2 v3 smoke test downloaded two completed preseason games missed by v2. The nba_api project also documents v2 deprecation/incomplete 2025–26 results: https://github.com/swar/nba_api/blob/master/CHANGELOG.MD . Existing successfully saved game files were retained and skipped on the corrected run.
+
+Final Release build passed with zero warnings/errors; Release NUnit run passed **33 tests**, with zero failures/skips. New coverage includes exact v3 URL/query, different home/away matchups, filtering nonfinal games, date/ID naming, malformed/missing team metadata and unsafe filename components. Existing byte preservation, failure handling, storage and rerun tests continue to pass. No Python or NBA access is required for unit tests.
+
+Season interpreted as the last completed **2025–26** season, from **2025-10-02 through 2026-06-30**, covering preseason through postseason without summer league. Executed the same host month by month to retain per-range summaries. All nine batches exited successfully: **1,400 discovered, 1,308 downloaded, 92 skipped, 0 failures**. The 92 skipped files had already been saved by the earlier attempts/smoke tests; total saved files are **1,400**, with no duplicate game IDs on inspection. Monthly discovered counts: October 151, November 219, December 198, January 233, February 173, March 239, April 144, May 38, June 5.
+
+Migration completed and verified on **2026-10-25** after the season run finished. All **1,400** JSON files were moved to `C:\Data\Basketball\NbaOfficial\stats\playbyplayv3`; SHA256 verification before/after found **0 changed hashes**. The empty repository-local `NbaOfficial` folder was removed. Game-ID prefix counts: 001=71, 002=1,230, 003=7, 004=85, 005=6, 006=1. These are observed source-ID counts, not a claim of full semantic data quality.
+
+Logs now live in `C:\Data\Basketball\NbaOfficial\logs`: `season-2025-26-v3.log` contains the completed run, `season-2025-26.log` the stopped v2 attempt, `scoreboard-v3-probe.json` the diagnostic response, and `migration-sha256.json` the migration hash manifest. No data or logs are committed.
+
+After updating the default, final Release build passed with zero warnings/errors and all **33** tests passed again. `dotnet run --configuration Release --no-build --project src/SportsModels.Data.NbaOfficial.Host -- 2026-02-02 2026-02-02` (no output override) returned **Discovered=4 Downloaded=0 Skipped=4 Failures=0**, exit 0, verifying the migrated files are found at the new default path without recreating the repository-local output directory.
+
+Sequential review: functional checks covered away/home orientation and named source fields, stable-ID deduplication, malformed schema, filename traversal prevention, output override and byte preservation. Performance remains sequential and bounded by the existing 30-second request timeout; only lightweight metadata is retained across discovery. Architecture keeps source parsing and filesystem work in Infrastructure, application orchestration behind internal ports and wiring in Autofac. `NbaGame` is a small internal source metadata record, not a unified basketball domain model.
+
 ## NBA Official / native Stats retrieval — 2026-10-21
 
 This section supersedes earlier endpoint/naming and live-access limitations below. Merged the latest `origin/master` conventions and applied the current issue #2 specification: projects, namespaces, paths, friend-assembly attribute, host and tests now use `SportsModels.Data.NbaOfficial`. The repository solution remains `SportsModels.Basketball.sln`. The user consolidated the proposed #7 transport work into #2; #7 is closed as superseded.
