@@ -1,5 +1,7 @@
 # SportsModels.Basketball — official NBA raw play-by-play ingestion
 
+Unified basketball core contracts and a runnable in-memory example are documented in [docs/BASKETBALL_CORE_CONTRACTS.md](docs/BASKETBALL_CORE_CONTRACTS.md).
+
 Initial implementation of [Issue #2](https://github.com/TeddyMc/SportsModels.Basketball/issues/2).
 Requires the .NET 8 SDK and HTTPS access to NuGet and `stats.nba.com`.
 
