@@ -6,4 +6,3 @@ public enum FieldGoalType
     TwoPointer = 1,
     ThreePointer = 2
 }
-

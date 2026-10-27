@@ -14,4 +14,3 @@ public sealed record SubstitutionEvent(
         SequenceNumber,
         Clock,
         OccurredAtUtc);
-

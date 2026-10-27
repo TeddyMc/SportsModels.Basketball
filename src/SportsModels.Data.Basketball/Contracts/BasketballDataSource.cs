@@ -5,4 +5,3 @@ public enum BasketballDataSource
     NotSet = 0,
     NbaOfficial = 1
 }
-

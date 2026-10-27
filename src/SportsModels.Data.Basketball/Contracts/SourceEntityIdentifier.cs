@@ -6,4 +6,3 @@ namespace SportsModels.Data.Basketball.Contracts;
 public sealed record SourceEntityIdentifier(
     BasketballDataSource Source,
     string SourceId);
-

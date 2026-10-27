@@ -8,4 +8,3 @@ public sealed record BasketballClock(
     BasketballPeriod Period,
     int? OvertimePeriodNumber,
     TimeSpan ClockRemaining);
-

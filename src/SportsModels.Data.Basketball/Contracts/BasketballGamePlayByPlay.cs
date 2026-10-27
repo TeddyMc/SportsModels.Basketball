@@ -8,4 +8,3 @@ public sealed record BasketballGamePlayByPlay(
     BasketballGameTeam HomeTeam,
     BasketballGameTeam AwayTeam,
     IReadOnlyList<BasketballPlayByPlayEvent> Events);
-

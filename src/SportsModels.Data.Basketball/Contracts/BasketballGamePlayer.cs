@@ -5,4 +5,3 @@ public sealed record BasketballGamePlayer(
     long PlayerId,
     string Name,
     IReadOnlyList<SourceEntityIdentifier> SourceIdentifiers);
-

@@ -6,4 +6,3 @@ public sealed record BasketballGameTeam(
     string Name,
     IReadOnlyList<SourceEntityIdentifier> SourceIdentifiers,
     IReadOnlyList<BasketballGamePlayer> Players);
-

@@ -10,4 +10,3 @@ public abstract record BasketballPlayByPlayEvent(
     int SequenceNumber,
     BasketballClock Clock,
     DateTime? OccurredAtUtc);
-

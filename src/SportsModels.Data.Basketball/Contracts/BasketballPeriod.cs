@@ -9,4 +9,3 @@ public enum BasketballPeriod
     FourthQuarter = 4,
     Overtime = 5
 }
-

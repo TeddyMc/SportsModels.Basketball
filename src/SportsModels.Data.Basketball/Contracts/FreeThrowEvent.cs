@@ -18,4 +18,3 @@ public sealed record FreeThrowEvent(
         SequenceNumber,
         Clock,
         OccurredAtUtc);
-

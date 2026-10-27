@@ -6,4 +6,3 @@ public enum ShotOutcome
     Made = 1,
     Missed = 2
 }
-
