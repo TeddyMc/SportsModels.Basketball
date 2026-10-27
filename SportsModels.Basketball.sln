@@ -12,6 +12,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{5E69DFEC
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SportsModels.Data.NbaOfficial.Tests.Unit", "tests\SportsModels.Data.NbaOfficial.Tests.Unit\SportsModels.Data.NbaOfficial.Tests.Unit.csproj", "{61F03CAB-7BDA-45F9-A6DC-68E1A1C50C39}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SportsModels.Data.Basketball", "src\SportsModels.Data.Basketball\SportsModels.Data.Basketball.csproj", "{C9409147-3409-4B2A-A44E-479240077D02}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{B36A84DF-456D-A817-6EDD-3EC3E7F6E11F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SportsModels.Data.Basketball.Examples", "examples\SportsModels.Data.Basketball.Examples\SportsModels.Data.Basketball.Examples.csproj", "{0E44AC05-5487-47CD-9DB1-A9F3A10DBFA7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,10 +39,20 @@ Global
 		{61F03CAB-7BDA-45F9-A6DC-68E1A1C50C39}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{61F03CAB-7BDA-45F9-A6DC-68E1A1C50C39}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{61F03CAB-7BDA-45F9-A6DC-68E1A1C50C39}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C9409147-3409-4B2A-A44E-479240077D02}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C9409147-3409-4B2A-A44E-479240077D02}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C9409147-3409-4B2A-A44E-479240077D02}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C9409147-3409-4B2A-A44E-479240077D02}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0E44AC05-5487-47CD-9DB1-A9F3A10DBFA7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0E44AC05-5487-47CD-9DB1-A9F3A10DBFA7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0E44AC05-5487-47CD-9DB1-A9F3A10DBFA7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0E44AC05-5487-47CD-9DB1-A9F3A10DBFA7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{5A313B59-76C3-4636-96AC-CE148DED83CD} = {A1EDE1A8-F8C9-4CFE-AA67-A1ACA04659FD}
 		{8D17734B-0AA5-4433-9E16-6B768EB7F8AA} = {A1EDE1A8-F8C9-4CFE-AA67-A1ACA04659FD}
 		{61F03CAB-7BDA-45F9-A6DC-68E1A1C50C39} = {5E69DFEC-9445-47CB-904F-C2FFFC50A7FC}
+		{C9409147-3409-4B2A-A44E-479240077D02} = {A1EDE1A8-F8C9-4CFE-AA67-A1ACA04659FD}
+		{0E44AC05-5487-47CD-9DB1-A9F3A10DBFA7} = {B36A84DF-456D-A817-6EDD-3EC3E7F6E11F}
 	EndGlobalSection
 EndGlobal
