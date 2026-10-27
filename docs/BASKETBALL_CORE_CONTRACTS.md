@@ -12,6 +12,22 @@ The event list is one chronological stream. Sequence numbers distinguish same-cl
 
 These positional records have init-only properties, but do not validate UTC kind, clock/period consistency, ordering, identity uniqueness or reference resolution. Collections and nested records must be supplied; caller-owned collections are not defensively copied or deeply immutable. Future conversion/public-entry validation must enforce invariants and surface unresolved data. Successful compilation does not establish reconstruction or cleaning correctness.
 
+## Nullable-field audit
+
+The core has five distinct nullable properties. `OccurredAtUtc` is repeated in the concrete event constructors because of record inheritance; its meaning is the same on every event.
+
+| Property | Why null is permitted | Meaning when populated |
+| --- | --- | --- |
+| `BasketballClock.OvertimePeriodNumber` | Not applicable in regulation. This is not a missing quarter number; `Period` identifies the quarter. | 1-based overtime number. An overtime clock requires this value. |
+| `BasketballPlayByPlayEvent.OccurredAtUtc` (also substitution/free throw) | The source may provide no event occurrence timestamp. A game clock alone cannot establish wall-clock time. | A known occurrence time converted to UTC, with `DateTimeKind.Utc`. |
+| `FreeThrowEvent.AttemptNumber` | The source may not establish the attempt's position in its award. This represents an unresolved fact, not an attempt with no position. | 1-based attempt number, such as 1 in “1 of 2”. |
+| `FreeThrowEvent.TotalAttempts` | The source may not establish the award's attempt count. This represents an unresolved fact, not an award with no count. | The associated award's attempt count, such as 2 in “1 of 2”. |
+| `FreeThrowEvent.ParentFoulEventId` | A causal foul may not be established or represented. Matching clock values or a single attempt alone do not prove a link. | An internal foul-event identity supported by conversion evidence. |
+
+Attempt number and total attempts are normally recoverable from descriptions in the inspected NBA samples. Their nullability accommodates unavailable or unresolved information across sources; the samples do not prove a basketball case in which those facts inherently do not exist. Requiring both for a fully validated stream would be a stricter future conversion policy. The approved core retains nullable declarations and does not silently replace missing facts with zero or guessed values.
+
+Null alone cannot distinguish all reasons for missingness. Conversion/QA (#13) must retain the reason and report unresolved values; the pending provenance design determines where that evidence lives. No other core properties are nullable: identities, names, clocks, teams and collections must be supplied. An empty collection represents no supplied entries, rather than a null collection.
+
 ## Runnable consumer example
 
 From the repository root:

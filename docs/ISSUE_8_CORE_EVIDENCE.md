@@ -1,5 +1,7 @@
 # Issue #8 core implementation evidence
 
+This file is a delivery record of scope, verification and limitations. It is not runtime configuration or an additional specification. The consumer-facing guide is [BASKETBALL_CORE_CONTRACTS.md](BASKETBALL_CORE_CONTRACTS.md); PR #14 also records verification, so this evidence file has less ongoing value than that guide.
+
 The user explicitly approved implementing only the specified core slice on 2026-10-27 after the full issue's Needs Clarification status was identified. The remaining schema is outside this approval. Branch: `task/8-basketball-core-contracts`, based on `origin/master` at `eb92d36`.
 
 ## Acceptance evidence
