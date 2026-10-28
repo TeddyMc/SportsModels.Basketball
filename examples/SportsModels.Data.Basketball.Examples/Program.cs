@@ -86,10 +86,10 @@ static Scenario Boston()
     BasketballPlayByPlayEvent[] events =
     [
         new FoulEvent(901, 1, ftClock, null, [new(home.TeamId, 101, null)], null, FoulType.Shooting, null),
-        // The original #8 free-throw constructor still compiles; category defaults to NotSet.
-        new FreeThrowEvent(902, 2, ftClock, null, away.TeamId, 202, ShotOutcome.Made, 1, 2, 901),
+        // Category is required explicitly; unresolved award cause is represented by NotSet.
+        new FreeThrowEvent(902, 2, ftClock, null, away.TeamId, 202, ShotOutcome.Made, 1, 2, 901, FreeThrowCategory.NotSet),
         new SubstitutionEvent(903, 3, ftClock, null, home.TeamId, 103, 104),
-        new FreeThrowEvent(904, 4, ftClock, null, away.TeamId, 202, ShotOutcome.Made, 2, 2, 901),
+        new FreeThrowEvent(904, 4, ftClock, null, away.TeamId, 202, ShotOutcome.Made, 2, 2, 901, FreeThrowCategory.NotSet),
         // Source teamId/location are unset for this coach row; do not infer a charged team from that row.
         new FoulEvent(905, 5, coachClock, null, [new(null, null, coach.CoachId)], null, FoulType.Technical, null),
         new FieldGoalEvent(906, 6, shotClock, null, home.TeamId, 101, FieldGoalType.TwoPointer,
@@ -172,25 +172,25 @@ static Scenario SecondOvertime()
 
     BasketballPlayByPlayEvent[] events =
     [
-        new PeriodEvent(1201, 1, clock with { ClockRemaining = TimeSpan.FromMinutes(5) }, null, PeriodMarker.Start),
+        new PeriodBoundaryEvent(1201, 1, clock with { ClockRemaining = TimeSpan.FromMinutes(5) }, null, PeriodMarker.Start),
         new FieldGoalEvent(1202, 2, clock, null, 42, 421, FieldGoalType.TwoPointer, ShotOutcome.Missed,
             null, 411, 1, null, ShotStyle.Layup, [ShotModifier.Driving, ShotModifier.Reverse], CourtArea.NotSet),
         new ReboundEvent(1203, 3, clock, null, 42, null, ReboundType.NotSet, ReboundCredit.Team, 1202, null),
         new TimeoutEvent(1204, 4, clock, null, 42, TimeoutType.Team),
         new FieldGoalEvent(1205, 5, clock with { ClockRemaining = TimeSpan.FromSeconds(54.7) }, null,
             42, 422, FieldGoalType.TwoPointer, ShotOutcome.Made, 423, null, 3, null, ShotStyle.Layup, [], CourtArea.NotSet),
-        new PeriodEvent(1206, 6, clock with { ClockRemaining = TimeSpan.Zero }, null, PeriodMarker.End)
+        new PeriodBoundaryEvent(1206, 6, clock with { ClockRemaining = TimeSpan.Zero }, null, PeriodMarker.End)
     ];
 
     return new("ATL@PHI_20251130_0022500304.json", Game(4, "0022500304", home, away, events),
     [
-        new(1201, nameof(PeriodEvent.Clock), BasketballEvidenceKind.Parsed, [Row(snapshot, 595, "596", "825")], "period=6 and Start of 2nd OT; source clock PT05M00.00S."),
+        new(1201, nameof(PeriodBoundaryEvent.Clock), BasketballEvidenceKind.Parsed, [Row(snapshot, 595, "596", "825")], "period=6 and Start of 2nd OT; source clock PT05M00.00S."),
         new(1202, nameof(FieldGoalEvent.Clock), BasketballEvidenceKind.Parsed, [Row(snapshot, 631, "632", "874")], "PT00M59.60S preserves fractional seconds in second overtime."),
         new(1202, nameof(FieldGoalEvent.BlockingPlayerId), BasketballEvidenceKind.Linked,
             [Row(snapshot, 631, "632", "874"), Row(snapshot, 632, "633", "874")], "Adjacent Bona BLOCK row supports this missed shot; shared actionNumber is not used as a unique ID or a second event."),
         new(1203, nameof(ReboundEvent.ReboundType), BasketballEvidenceKind.Unresolved, [Row(snapshot, 633, "634", "876")], "Team rebound is explicit; offensive/defensive classification is left unresolved without a verified rule."),
         new(1204, nameof(TimeoutEvent.TeamId), BasketballEvidenceKind.Parsed, [Row(snapshot, 634, "635", "878")], "Source teamId=0; personId=1610612737 and Hawks description identify the team."),
-        new(1206, nameof(PeriodEvent.OccurredAtUtc), BasketballEvidenceKind.Unresolved, [Row(snapshot, 650, "651", "897")], "Description provides minute-resolution 9:13 PM EST; no UTC date/time is invented here.")
+        new(1206, nameof(PeriodBoundaryEvent.OccurredAtUtc), BasketballEvidenceKind.Unresolved, [Row(snapshot, 650, "651", "897")], "Description provides minute-resolution 9:13 PM EST; no UTC date/time is invented here.")
     ]);
 }
 

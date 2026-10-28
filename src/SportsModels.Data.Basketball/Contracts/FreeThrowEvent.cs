@@ -28,7 +28,7 @@ public sealed record FreeThrowEvent(
     int? AttemptNumber,
     int? TotalAttempts,
     long? ParentFoulEventId,
-    FreeThrowCategory Category = FreeThrowCategory.NotSet)
+    FreeThrowCategory Category)
     : BasketballPlayByPlayEvent(
         EventId,
         SequenceNumber,

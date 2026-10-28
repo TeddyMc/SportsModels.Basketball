@@ -29,7 +29,7 @@ These positional records declare an API, not a validation engine. They do not en
 | Contract | Use and important boundaries |
 | --- | --- |
 | `FieldGoalEvent` | Official 2/3-point attempt, outcome, optional assist/block credit, distance/location, style/modifiers and court area. Defensive-goaltending credit is an ordinary made shot, not a separate points award. |
-| `FreeThrowEvent` | One independent attempt, nullable attempt number/count and causative `ParentFoulEventId`. Category describes the award's cause, supported by text or an established parent foul. It defaults to `NotSet`, preserving the #8 constructor call. Subsequent possession is reconstructed separately. |
+| `FreeThrowEvent` | One independent attempt, nullable attempt number/count and causative `ParentFoulEventId`. Category describes the award's cause, supported by text or an established parent foul. The category constructor argument is mandatory; callers explicitly pass `NotSet` when unresolved. Subsequent possession is reconstructed separately. |
 | `FoulEvent` | A supplied list of charged `FoulParticipant` records; separate optional fouled player and affected FG reference. The second participant in a double foul is also charged, not automatically the fouled player. |
 | `SubstitutionEvent` | Team, outgoing and incoming players; same-clock order remains significant. |
 | `ReboundEvent` | Player/team credit and supported offensive/defensive classification; at most one missed-FG or missed-FT reference. Team rebounds have no fabricated player. Live/dead-ball state is separate derived output. |
@@ -38,7 +38,7 @@ These positional records declare an API, not a validation engine. They do not en
 | `ReviewEvent` | Observed review/ruling, optional requesting team and reviewed event. Supported, RulingStands and Overturned stay distinct. There is no manufactured Started/Completed lifecycle or inferred Inconclusive result. |
 | `ViolationEvent` | Observed violation and optional attempt links. Defensive goaltending can refer to a credited FG or FT; the violation applies no additional score. A violation does not automatically imply a turnover. |
 | `JumpBallEvent` | Supported participants and gaining player/team; unknown identities remain null. |
-| `PeriodEvent` | Start/end marker; inherited clock identifies regulation/overtime period. |
+| `PeriodBoundaryEvent` | Start/end marker; inherited clock identifies regulation/overtime period. |
 | `HeaveEvent` | Separately reported team heave, with player identity where supplied. The inspected source labels these Team Field Goal Attempt while isFieldGoal=0. Do not assume zero team-stat effect; #13 must verify treatment against reference statistics. |
 | `EjectionEvent` | Player or coach ejection, with optional charged team; never place a coach into a player ID. |
 
@@ -52,6 +52,8 @@ Auxiliary block/steal source rows support the corresponding shot/turnover, witho
 
 ## Classification and missingness
 
+A **heave** is a long-distance desperation shot near the end of a period, often launched from around half court or farther away to beat the buzzer. The local feed explicitly reports rows such as `NETS Heave` with subtype `Team Field Goal Attempt`, separately from ordinary made/missed player shots. NBA's [2025-26 explanation](https://www.nba.com/news/nba-heaves-rule-change-early-results) describes the team-versus-player statistical distinction. `HeaveEvent` preserves the observed source classification; #13 must reconcile actual counting against season rules and box scores rather than assume it is statistically irrelevant.
+
 All enums start with explicit `NotSet = 0` and explicit sequential values. The four core enums from #8 retain their numeric values. Enums introduced in the unmerged #16 draft were revised before publication; downstream users must rebuild against the final schema. `NotSet` means unresolved/unspecified, never a definite negative; `Other` means an understood category outside the named taxonomy.
 
 Shot style is JumpShot, Layup, Dunk or HookShot, with supported modifiers such as Driving, Reverse, Cutting and Tip. Tip dunks retain Dunk + Tip; Tip layups retain Layup + Tip. Modifiers can coexist. Supply the collection; empty means none positively identified, not proof of absence. Do not insert NotSet into that collection. Style and court area are separate; distance alone does not establish a zone.
@@ -61,6 +63,14 @@ Null means unavailable, unresolved or inapplicable according to the field. Compa
 The inspected FT rows all have blank shotResult; make/miss comes from descriptions. Most subtype labels supply attempt numbers/counts, but unnumbered technical FTs also occur. Rebound subType Unknown does not establish that offensive/defensive classification cannot be derived: original totals and sequence may support it, with evidence.
 
 ## Companion evidence usage
+
+These three types currently have one executable consumer: [Program.cs](../examples/SportsModels.Data.Basketball.Examples/Program.cs). Each example keeps a separate `Scenario.Evidence` list, the `Row(...)` helper constructs source references, and the console prints each field's evidence kind and explanation. There is no production converter or report writer using them yet. #13 will populate and export this companion information during conversion/validation; it is not required by scoring or modelling consumers of the canonical events.
+
+| Type | Useful purpose | Example |
+| --- | --- | --- |
+| `BasketballSourceRowReference` | Locate the exact input row supporting a value, even after another download changes the source file. | Follow a snapshot hash and zero-based row index to the Brown shot or Daniels violation; retain both original provider identifiers. |
+| `BasketballEvidenceKind` | Explain whether a value was read, parsed, transformed or linked, or why it was not populated. These are methods/reasons, not confidence scores. | Assist is Parsed from description; shot/violation relationship is Linked; unverified coordinates are Unresolved. |
+| `BasketballFieldEvidence` | Connect that method and source row(s) to a specific internal event field, making conversion results auditable. | If an assist looks wrong, find that event's AssistingPlayerId evidence and inspect the original description instead of searching the whole game. |
 
 `BasketballFieldEvidence` references an internal `EventId`, a canonical `FieldName`, an evidence kind, source rows and an explanation. Prefer `nameof(FieldGoalEvent.Outcome)` over hard-coded property names. Paths into nested participants can be described in the explanation; no reflection framework is introduced.
 
@@ -101,7 +111,7 @@ dotnet run --project examples/SportsModels.Data.Basketball.Examples
 
 | Local source file | Representative action IDs |
 | --- | --- |
-| ATL@BOS_20260128_0022500673.json | 33–36: shooting foul and two FTs interrupted by substitution; 329: Joe Mazzulla technical; 417/418: Brown made 2 and Daniels defensive goaltending |
+| ATL@BOS_20260128_0022500673.json | 33â€“36: shooting foul and two FTs interrupted by substitution; 329: Joe Mazzulla technical; 417/418: Brown made 2 and Daniels defensive goaltending |
 | ATL@BKN_20260403_0022501122.json | 300: Clowney/Gueye double technical; 306/307: Clowney technical and ejection |
 | BKN@POR_20260323_0022501045.json | 331: Cissoko/Minott double personal |
 | ATL@PHI_20251130_0022500304.json | 596: second-OT start; 632/633: missed shot/block at 59.60 seconds; 634/635: team rebound/timeout; 636: made shot; 651: end |
