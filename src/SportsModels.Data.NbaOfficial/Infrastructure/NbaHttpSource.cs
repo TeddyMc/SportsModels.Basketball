@@ -58,7 +58,7 @@ internal sealed class NbaHttpSource(HttpClient client) : INbaSource
     public Task<byte[]> DownloadAsync(string gameId, CancellationToken cancellationToken) =>
         GetAsync($"https://stats.nba.com/stats/playbyplayv3?GameID={gameId}&StartPeriod=0&EndPeriod=0", cancellationToken);
 
-    private async Task<byte[]> GetAsync(string url, CancellationToken cancellationToken)
+    internal async Task<byte[]> GetAsync(string url, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Referrer = new Uri("https://www.nba.com/");
