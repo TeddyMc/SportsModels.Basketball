@@ -17,5 +17,6 @@ public enum ShotModifier
     Floating = 12,
     Cutting = 13,
     Tip = 14,
-    Other = 15
+    Other = 15,
+    Heave = 16
 }

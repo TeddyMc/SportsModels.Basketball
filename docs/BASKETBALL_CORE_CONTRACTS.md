@@ -12,6 +12,8 @@ Canonical events describe understood basketball history. A populated value may c
 | Companion field evidence | Source snapshot/rows, canonical event/field, method and explanation, including missingness reasons | Small declaration types here; complete production evidence/reporting in #13 |
 | Reconstructed state | Running score, possession, lineups, cumulative foul/stat totals, live/dead-ball state | Separate #13 validation/state output, not fields duplicated on canonical events |
 
+Each immutable conversion run retains the canonical dataset and its companion evidence together as separate, version-aligned outputs. Evidence is additional metadata about the dataset, not extra basketball events. Consumers can load the canonical dataset alone; diagnostics follow EventId/FieldName into the matching run's evidence.
+
 For example, a goaltending basket is one made `FieldGoalEvent` and a `ViolationEvent` referring to it. Points come from the made shot, once. Its `ShotLocation` remains null until a transformation is verified; companion evidence explains that unresolved value. Reconstructed score after the play belongs to validation output, not to either event.
 
 ## Identity, order and time
@@ -28,7 +30,7 @@ These positional records declare an API, not a validation engine. They do not en
 
 | Contract | Use and important boundaries |
 | --- | --- |
-| `FieldGoalEvent` | Official 2/3-point attempt, outcome, optional assist/block credit, distance/location, style/modifiers and court area. Defensive-goaltending credit is an ordinary made shot, not a separate points award. |
+| `FieldGoalEvent` | All field-goal attempts, including team-credited heaves: type/outcome, nullable physical shooter, mandatory player/team attempt credit, optional assist/block credit, distance/location, style/modifiers and court area. Defensive-goaltending credit is an ordinary made shot, not a separate points award. |
 | `FreeThrowEvent` | One independent attempt, nullable attempt number/count and causative `ParentFoulEventId`. Category describes the award's cause, supported by text or an established parent foul. The category constructor argument is mandatory; callers explicitly pass `NotSet` when unresolved. Subsequent possession is reconstructed separately. |
 | `FoulEvent` | A supplied list of charged `FoulParticipant` records; separate optional fouled player and affected FG reference. The second participant in a double foul is also charged, not automatically the fouled player. |
 | `SubstitutionEvent` | Team, outgoing and incoming players; same-clock order remains significant. |
@@ -39,7 +41,6 @@ These positional records declare an API, not a validation engine. They do not en
 | `ViolationEvent` | Observed violation and optional attempt links. Defensive goaltending can refer to a credited FG or FT; the violation applies no additional score. A violation does not automatically imply a turnover. |
 | `JumpBallEvent` | Supported participants and gaining player/team; unknown identities remain null. |
 | `PeriodBoundaryEvent` | Start/end marker; inherited clock identifies regulation/overtime period. |
-| `HeaveEvent` | Separately reported team heave, with player identity where supplied. The inspected source labels these Team Field Goal Attempt while isFieldGoal=0. Do not assume zero team-stat effect; #13 must verify treatment against reference statistics. |
 | `EjectionEvent` | Player or coach ejection, with optional charged team; never place a coach into a player ID. |
 
 `FoulParticipant(TeamId, PlayerId, CoachId)` has nullable typed identities. Player and coach are mutually exclusive; team-only entries represent bench/administrative charges. Ordinary known fouls have one charged entry, established double fouls two. Unknown participants/teams require companion findings, not invented actors. Player/coach metadata can establish membership while the charged team on an individual source row remains unresolved.
@@ -52,7 +53,13 @@ Auxiliary block/steal source rows support the corresponding shot/turnover, witho
 
 ## Classification and missingness
 
-A **heave** is a long-distance desperation shot near the end of a period, often launched from around half court or farther away to beat the buzzer. The local feed explicitly reports rows such as `NETS Heave` with subtype `Team Field Goal Attempt`, separately from ordinary made/missed player shots. NBA's [2025-26 explanation](https://www.nba.com/news/nba-heaves-rule-change-early-results) describes the team-versus-player statistical distinction. `HeaveEvent` preserves the observed source classification; #13 must reconcile actual counting against season rules and box scores rather than assume it is statistically irrelevant.
+A **heave** is a long-distance desperation shot near the end of a period, often launched from around half court or farther away to beat the buzzer. It is a `FieldGoalEvent` with `ShotModifier.Heave`, not a separate event type. A single `OfType<FieldGoalEvent>()` query includes ordinary shots, made long-range heaves and team-only attempts. NBA's [2025-26 explanation](https://www.nba.com/news/nba-heaves-rule-change-early-results) describes the team-versus-player statistical distinction; the modifier itself is descriptive and does not establish eligibility for a statistical exception.
+
+`FieldGoalAttemptCredit` is a required constructor argument. Player means the attempt is attributed to the shooter as well as the team; Team means team-only statistical attempt credit. NotSet means unresolved attribution. This is not the physical shooter identity: a team-only attempt may still retain a known `ShooterPlayerId`. A player-credited attempt requires a resolved shooter. A source team attempt can have a null shooter, with a missingness explanation; never insert player zero or use the team ID as a player ID.
+
+Keep each effective basketball attempt once. If several provider rows describe it, attach them to that same event's companion evidence. The local overlap check found no ordinary made/missed-shot row at the same period, exact clock and side for any of the 1,199 explicit Heave rows. That diagnostic check is not a complete production duplicate detector; #13 must still reconcile source identities, revisions and reference counts.
+
+All 1,199 explicit team-Heave rows have blank shotResult and shotValue=0. Their source subtype supports Team attempt credit, but does not itself establish a made/missed result or 2/3-point value. Keep those fields NotSet until source/rule/reference evidence establishes them. Do not manufacture a missed three or treat an unresolved result as a verified zero statistical effect. Populated made 2/3-point shots carry their points exactly as ordinary shots; the heave modifier never adds another basket or strips a recorded player's made-shot credit.
 
 All enums start with explicit `NotSet = 0` and explicit sequential values. The four core enums from #8 retain their numeric values. Enums introduced in the unmerged #16 draft were revised before publication; downstream users must rebuild against the final schema. `NotSet` means unresolved/unspecified, never a definite negative; `Other` means an understood category outside the named taxonomy.
 
@@ -107,7 +114,7 @@ Canonical events contain understood, corrected effective history. Apply evidence
 dotnet run --project examples/SportsModels.Data.Basketball.Examples
 ```
 
-[Program.cs](../examples/SportsModels.Data.Basketball.Examples/Program.cs) manually constructs selected events from five inspected snapshots, with independent internal IDs and separate field evidence:
+[Program.cs](../examples/SportsModels.Data.Basketball.Examples/Program.cs) manually constructs selected events from six inspected snapshots, with independent internal IDs and separate field evidence:
 
 | Local source file | Representative action IDs |
 | --- | --- |
@@ -116,7 +123,8 @@ dotnet run --project examples/SportsModels.Data.Basketball.Examples
 | BKN@POR_20260323_0022501045.json | 331: Cissoko/Minott double personal |
 | ATL@PHI_20251130_0022500304.json | 596: second-OT start; 632/633: missed shot/block at 59.60 seconds; 634/635: team rebound/timeout; 636: made shot; 651: end |
 | BKN@IND_20251105_0022500173.json | 270: Rick Carlisle coach ejection |
+| ATL@DAL_20260318_0022501006.json | 374: Kuminga's recorded 73-foot made three at Q3 3.60 seconds; 375: supporting review; 376: Dallas team-Heave row at 0.30 seconds with no identified shooter/value/outcome |
 
-The consumer checks the selected goaltending link/one made basket, interrupted FT order, double-charge structure, coach identity and fractional second overtime. It prints Direct, Parsed, Linked and Unresolved evidence. No transformed coordinates are invented, and no example claims complete field evidence, UTC conversion or full-game reconstruction. Game/team/name associations are curated for the example, not produced by a tested production resolver. Source-row charged teams remain null where unsupported even when metadata associates a coach with a team.
+The consumer checks the selected goaltending link/one made basket, interrupted FT order, double-charge structure, coach identity, fractional second overtime and a unified shot query containing both the made three and team-only heave. The recorded 73-foot shot at 3.60 seconds is tagged descriptively from its distance/time, not declared eligible for an NBA statistical exception. It prints Direct, Parsed, Linked and Unresolved evidence. No transformed coordinates are invented, and no example claims complete field evidence, UTC conversion or full-game reconstruction. Game/team/name associations are curated for the example, not produced by a tested production resolver. Source-row charged teams remain null where unsupported even when metadata associates a coach with a team.
 
 No raw downloads or live NBA access are needed to run these constructions. The original snapshot hashes tie the examples to the inspected inputs, but those bulk inputs are not committed. The local inventory covered 1,400 files/707,440 rows; its full evidence, sampling scope, observed categories and limitations are recorded in #16. These selections are contract demonstrations, not validated complete games or proof of source parsing, corrected-history reconciliation, team-heave counts or reference-stat agreement.

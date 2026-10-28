@@ -3,7 +3,7 @@ using SportsModels.Data.Basketball.Contracts;
 // Manually constructed selections from identified local source snapshots, not a converter or full games.
 // Internal IDs are allocated independently. Metadata associations are curated for these examples;
 // production roster/name matching and the complete evidence/coverage report remain #13.
-Scenario[] scenarios = [Boston(), DoubleTechnical(), DoublePersonal(), SecondOvertime(), CoachEjection()];
+Scenario[] scenarios = [Boston(), DoubleTechnical(), DoublePersonal(), SecondOvertime(), CoachEjection(), LongRangeShots()];
 
 foreach (var scenario in scenarios)
 {
@@ -61,7 +61,26 @@ if (overtime.Any(play => play.Clock.OvertimePeriodNumber != 2)
     throw new InvalidOperationException("The real period-six example must preserve second overtime and fractional seconds.");
 }
 
-Console.WriteLine("Source-derived smoke checks passed: one credited goaltending basket, interrupted FTs, double foul, coach identity and fractional second overtime.");
+var longRangeShots = scenarios[5].Game.Events.OfType<FieldGoalEvent>().ToArray();
+
+var madeHeave = longRangeShots.Single(shot => shot.Outcome == ShotOutcome.Made);
+
+var teamHeave = longRangeShots.Single(shot => shot.AttemptCredit == FieldGoalAttemptCredit.Team);
+
+if (longRangeShots.Length != 2
+    || madeHeave.FieldGoalType != FieldGoalType.ThreePointer
+    || madeHeave.AttemptCredit != FieldGoalAttemptCredit.Player
+    || madeHeave.ShooterPlayerId != 621
+    || !madeHeave.ShotModifiers.Contains(ShotModifier.Heave)
+    || teamHeave.ShooterPlayerId is not null
+    || teamHeave.Outcome != ShotOutcome.NotSet
+    || teamHeave.FieldGoalType != FieldGoalType.NotSet)
+{
+    throw new InvalidOperationException("One shot query must include the made three and team-only heave without inventing the latter's missing facts.");
+}
+
+Console.WriteLine("Long-range shot query: two FieldGoalEvent records; the made three credits Kuminga, the team-only attempt retains unknown shooter/value/outcome.");
+Console.WriteLine("Source-derived smoke checks passed: goaltending, interrupted FTs, double foul, coach identity, fractional second overtime and unified heave queries.");
 Console.WriteLine("No source reconstruction, complete lineup/state validation, coordinate transformation or team-heave statistics are claimed.");
 
 static Scenario Boston()
@@ -93,7 +112,7 @@ static Scenario Boston()
         // Source teamId/location are unset for this coach row; do not infer a charged team from that row.
         new FoulEvent(905, 5, coachClock, null, [new(null, null, coach.CoachId)], null, FoulType.Technical, null),
         new FieldGoalEvent(906, 6, shotClock, null, home.TeamId, 101, FieldGoalType.TwoPointer,
-            ShotOutcome.Made, 102, null, 4, null, ShotStyle.Layup, [ShotModifier.Driving], CourtArea.NotSet),
+            ShotOutcome.Made, 102, null, 4, null, ShotStyle.Layup, [ShotModifier.Driving], CourtArea.NotSet, FieldGoalAttemptCredit.Player),
         new ViolationEvent(907, 7, shotClock, null, away.TeamId, 201, ViolationType.DefensiveGoaltending, 906, null)
     ];
 
@@ -174,11 +193,11 @@ static Scenario SecondOvertime()
     [
         new PeriodBoundaryEvent(1201, 1, clock with { ClockRemaining = TimeSpan.FromMinutes(5) }, null, PeriodMarker.Start),
         new FieldGoalEvent(1202, 2, clock, null, 42, 421, FieldGoalType.TwoPointer, ShotOutcome.Missed,
-            null, 411, 1, null, ShotStyle.Layup, [ShotModifier.Driving, ShotModifier.Reverse], CourtArea.NotSet),
+            null, 411, 1, null, ShotStyle.Layup, [ShotModifier.Driving, ShotModifier.Reverse], CourtArea.NotSet, FieldGoalAttemptCredit.Player),
         new ReboundEvent(1203, 3, clock, null, 42, null, ReboundType.NotSet, ReboundCredit.Team, 1202, null),
         new TimeoutEvent(1204, 4, clock, null, 42, TimeoutType.Team),
         new FieldGoalEvent(1205, 5, clock with { ClockRemaining = TimeSpan.FromSeconds(54.7) }, null,
-            42, 422, FieldGoalType.TwoPointer, ShotOutcome.Made, 423, null, 3, null, ShotStyle.Layup, [], CourtArea.NotSet),
+            42, 422, FieldGoalType.TwoPointer, ShotOutcome.Made, 423, null, 3, null, ShotStyle.Layup, [], CourtArea.NotSet, FieldGoalAttemptCredit.Player),
         new PeriodBoundaryEvent(1206, 6, clock with { ClockRemaining = TimeSpan.Zero }, null, PeriodMarker.End)
     ];
 
@@ -212,6 +231,48 @@ static Scenario CoachEjection()
     return new("BKN@IND_20251105_0022500173.json", Game(5, "0022500173", home, away, events),
     [
         new(1301, nameof(EjectionEvent.CoachId), BasketballEvidenceKind.Parsed, [Row(snapshot, 269, "270", "392")], "Rick Carlisle Ejection:Other; personId=1320 is a coach identity. Source charged team remains unset.")
+    ]);
+}
+
+static Scenario LongRangeShots()
+{
+    const string snapshot = "sha256:722b139251165503dc1326458f869146e13bcdf2cdf33cf4549f1e0aff7a43c2";
+
+    var home = Team(61, "Dallas", "1610612742");
+
+    var away = Team(62, "Atlanta", "1610612737", Player(621, "Kuminga", "1630228"));
+
+    var clock = Clock(BasketballPeriod.ThirdQuarter, 3.6);
+
+    BasketballPlayByPlayEvent[] events =
+    [
+        new FieldGoalEvent(1401, 1, clock, null, away.TeamId, 621, FieldGoalType.ThreePointer,
+            ShotOutcome.Made, null, null, 73, null, ShotStyle.JumpShot,
+            [ShotModifier.PullUp, ShotModifier.Heave], CourtArea.NotSet, FieldGoalAttemptCredit.Player),
+        new ReviewEvent(1402, 2, clock with { ClockRemaining = TimeSpan.FromSeconds(1.4) }, null,
+            null, ReviewType.OfficialReview, ReviewOutcome.Supported, 1401),
+        // The feed reports the team attempt but not its shooter, value, result or shot style.
+        new FieldGoalEvent(1403, 3, clock with { ClockRemaining = TimeSpan.FromSeconds(0.3) }, null,
+            home.TeamId, null, FieldGoalType.NotSet, ShotOutcome.NotSet, null, null, null, null,
+            ShotStyle.NotSet, [ShotModifier.Heave], CourtArea.NotSet, FieldGoalAttemptCredit.Team)
+    ];
+
+    var madeRow = Row(snapshot, 373, "374", "524");
+
+    var teamRow = Row(snapshot, 375, "376", "527");
+
+    return new("ATL@DAL_20260318_0022501006.json", Game(6, "0022501006", home, away, events),
+    [
+        new(1401, nameof(FieldGoalEvent.Outcome), BasketballEvidenceKind.Direct, [madeRow], "Made Shot, shotResult=Made and shotValue=3; points remain on the ordinary shot event."),
+        new(1401, nameof(FieldGoalEvent.ShotModifiers), BasketballEvidenceKind.Parsed, [madeRow], "The recorded 73-foot shot at Q3 3.60 seconds is a descriptive long-range heave; this does not assert eligibility for any statistical exception."),
+        new(1401, nameof(FieldGoalEvent.AttemptCredit), BasketballEvidenceKind.Direct, [madeRow], "Ordinary credited made three identifies Kuminga; the heave modifier does not remove player credit."),
+        new(1402, nameof(ReviewEvent.RelatedEventId), BasketballEvidenceKind.Linked,
+            [madeRow, Row(snapshot, 374, "375", "526")], "Manually inspected following Support Ruling with personId=524 matching the shot's actionNumber; not a general matching rule."),
+        new(1403, nameof(FieldGoalEvent.AttemptCredit), BasketballEvidenceKind.Direct, [teamRow], "Source subtype explicitly says Team Field Goal Attempt; do not add another event or credit a fictitious player."),
+        new(1403, nameof(FieldGoalEvent.TeamId), BasketballEvidenceKind.Parsed, [teamRow], "MAVERICKS Heave and home location identify Dallas despite teamId=0."),
+        new(1403, nameof(FieldGoalEvent.ShooterPlayerId), BasketballEvidenceKind.Unresolved, [teamRow], "personId=0 and blank player name provide no shooter identity."),
+        new(1403, nameof(FieldGoalEvent.FieldGoalType), BasketballEvidenceKind.Unresolved, [teamRow], "shotValue=0 is not a verified two/three-point value; do not infer it solely from Heave."),
+        new(1403, nameof(FieldGoalEvent.Outcome), BasketballEvidenceKind.Unresolved, [teamRow], "shotResult is blank and description supplies no result; source-rule/reference verification remains #13.")
     ]);
 }
 
