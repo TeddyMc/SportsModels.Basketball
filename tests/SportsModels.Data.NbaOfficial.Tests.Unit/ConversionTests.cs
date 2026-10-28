@@ -239,6 +239,19 @@ public sealed class ConversionTests
     private ConvertedGame Convert(byte[] bytes, ReferenceBundle? references = null) =>
         registry.InTransaction(() => new NbaGameConverter(registry).Convert(bytes, SourceJson.Hash(bytes), references ?? new ReferenceBundle()));
 
+    [TestCase(3, true)]
+    [TestCase(1, false)]
+    public void MatchedReferenceFinalStatusReachesValidation(int status, bool final)
+    {
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            resultSets = new[] { new { name = "GameSummary", headers = new[] { "GAME_ID", "GAME_STATUS_ID" },
+                rowSet = new object[][] { ["0022501122", status] } } }
+        });
+        var bundle = ReferenceBundle.Parse([("boxscoresummaryv2-p0-fixture.json", bytes)], "0022501122");
+        Assert.That(Convert(SourceCase("0022501122"), bundle).Context.Final, Is.EqualTo(final));
+    }
+
     private static byte[] SourceCase(string gameId)
     {
         using var document = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(TestContext.CurrentContext.TestDirectory, "Fixtures", "source-cases.json")));

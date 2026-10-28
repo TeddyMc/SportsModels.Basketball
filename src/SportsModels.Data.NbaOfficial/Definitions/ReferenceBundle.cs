@@ -10,6 +10,7 @@ internal sealed class ReferenceBundle
     public List<(int Period, string Mode, JsonElement Box)> Boxes { get; } = [];
     public List<(string TeamId, string CoachId, string Name)> Coaches { get; } = [];
     public List<(string TeamId, string PlayerId, string Name)> RosterPlayers { get; } = [];
+    public bool FinalStatusVerified { get; private set; }
 
     public static ReferenceBundle Parse(IReadOnlyList<(string Path, byte[] Bytes)> inputs, string gameId)
     {
@@ -81,6 +82,7 @@ internal sealed class ReferenceBundle
                 if (table.Text("name") == "GameSummary")
                 {
                     if (Value("GAME_ID") != gameId) { throw new InvalidDataException("Summary game ID mismatch."); }
+                    FinalStatusVerified = Value("GAME_STATUS_ID") == "3";
                     Checks.Add(new("REFERENCE.GAME_STATUS", Value("GAME_STATUS_ID") == "3" ? CheckStatus.Pass : CheckStatus.NotAssessable,
                         $"Summary status={Value("GAME_STATUS_ID")}; date={Value("GAME_DATE_EST")}; season={Value("SEASON")}. Scheduled status on a retrospective response does not prove game completion."));
                 }

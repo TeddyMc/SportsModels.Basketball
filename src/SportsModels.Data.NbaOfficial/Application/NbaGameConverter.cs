@@ -125,7 +125,7 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
             int.TryParse(r.Text("scoreHome"), out var h) ? h : null,
             int.TryParse(r.Text("scoreAway"), out var a) ? a : null, i)).Where(x => x.Home is not null || x.Away is not null).ToArray();
         var unresolved = dispositions.Where(x => x.Disposition == "Unresolved").Select(x => x.RowIndex + 1).ToArray();
-        var context = new GameValidationContext(ordinary, false, lineups, statistics, scoreObservations, unresolved,
+        var context = new GameValidationContext(ordinary, references.FinalStatusVerified, lineups, statistics, scoreObservations, unresolved,
             dispositions.Any(x => x.Disposition == "Unresolved" && x.Original.Text("actionType") == ""),
             "Reference interval/minute precision must be verified; no reference means not assessable. Final status unavailable unless independently supplied.")
         {
@@ -140,8 +140,9 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
             "Description wall clocks are minute precision; game date/timezone/midnight evidence is not verified. OccurredAtUtc remains null."));
         checks.Add(new("SHOT.LOCATION", CheckStatus.NotAssessable,
             "xLegacy/yLegacy axes/orientation and court areas are unverified; retained raw, canonical location/distance/area unset."));
-        checks.Add(new("GAME.STATUS", CheckStatus.NotAssessable,
-            "Period-end rows alone do not independently establish official final/suspended status."));
+        checks.Add(new("GAME.STATUS", references.FinalStatusVerified ? CheckStatus.Pass : CheckStatus.NotAssessable,
+            references.FinalStatusVerified ? "Matched reference GameSummary reports final status 3."
+                : "Period-end rows alone do not independently establish official final/suspended status."));
         var mappedIds = events.Select(e => e.EventId).ToHashSet();
         for (var i = 0; i < checks.Count; i++)
         {
