@@ -1,45 +1,130 @@
-# Unified basketball core contracts
+# Unified basketball contracts
 
-The approved core slice of [issue #8](https://github.com/TeddyMc/SportsModels.Basketball/issues/8) lives in `SportsModels.Data.Basketball`, under `SportsModels.Data.Basketball.Contracts`. It has no package or provider dependencies. It follows the existing .NET 8, nullable-enabled build configuration.
+The source-independent contracts live in the dependency-free .NET 8 `SportsModels.Data.Basketball` project, namespace `SportsModels.Data.Basketball.Contracts`. [Issue #8](https://github.com/TeddyMc/SportsModels.Basketball/issues/8) owns the core decisions; [issue #16](https://github.com/TeddyMc/SportsModels.Basketball/issues/16) owns the source-backed event schema, evidence review and revision decisions.
 
-Game, team, player and event IDs are internally allocated `long` values. Allocation and mapping are future conversion responsibilities. Metadata retains provider identities as source/string pairs, preserving leading zeroes. Events reference internal IDs. Team rosters describe game-specific metadata; presence does not assert participation or active status.
+## Events, evidence and reconstructed state
 
-All enums use explicit sequential values beginning with `NotSet = 0`. `NotSet` means unspecified, never a definite negative. `FieldGoalType` is included as an agreed declaration; field-goal events and shot coordinates await specification.
+Canonical events describe understood basketball history. A populated value may come directly from a field, from description parsing, from a verified coordinate transformation, or from an established relationship between source rows. Parsing/transformation does not automatically make a fact into reconstructed game state.
 
-`BasketballClock` supports regulation quarters and arbitrary 1-based overtime numbers, with fractional `TimeSpan` remaining time. Regulation uses a null overtime number. There is no fixed quarter duration in these contracts. Events share internal identity, sequence number, clock and nullable `DateTime` occurrence time. Known times must have `DateTimeKind.Utc`; unavailable times stay null. Conversion must never interpolate occurrence timestamps or confuse response/received times with event times.
-
-The event list is one chronological stream. Sequence numbers distinguish same-clock events; initial conversion may retain source array order. Each free throw is independent, permitting substitutions and other events between attempts. Unknown attempt numbers/counts and parent-foul links remain null. Consumers query `ParentFoulEventId` to find related attempts; no nested authoritative copy exists. Scores, foul counts and cumulative statistics are not duplicated here.
-
-These positional records have init-only properties, but do not validate UTC kind, clock/period consistency, ordering, identity uniqueness or reference resolution. Collections and nested records must be supplied; caller-owned collections are not defensively copied or deeply immutable. Future conversion/public-entry validation must enforce invariants and surface unresolved data. Successful compilation does not establish reconstruction or cleaning correctness.
-
-## Nullable-field audit
-
-The core has five distinct nullable properties. `OccurredAtUtc` is repeated in the concrete event constructors because of record inheritance; its meaning is the same on every event.
-
-| Property | Why null is permitted | Meaning when populated |
+| Representation | Contents | Responsibility |
 | --- | --- | --- |
-| `BasketballClock.OvertimePeriodNumber` | Not applicable in regulation. This is not a missing quarter number; `Period` identifies the quarter. | 1-based overtime number. An overtime clock requires this value. |
-| `BasketballPlayByPlayEvent.OccurredAtUtc` (also substitution/free throw) | The source may provide no event occurrence timestamp. A game clock alone cannot establish wall-clock time. | A known occurrence time converted to UTC, with `DateTimeKind.Utc`. |
-| `FreeThrowEvent.AttemptNumber` | The source may not establish the attempt's position in its award. This represents an unresolved fact, not an attempt with no position. | 1-based attempt number, such as 1 in “1 of 2”. |
-| `FreeThrowEvent.TotalAttempts` | The source may not establish the award's attempt count. This represents an unresolved fact, not an award with no count. | The associated award's attempt count, such as 2 in “1 of 2”. |
-| `FreeThrowEvent.ParentFoulEventId` | A causal foul may not be established or represented. Matching clock values or a single attempt alone do not prove a link. | An internal foul-event identity supported by conversion evidence. |
+| Canonical game/events | Shots, fouls, participants, clock, established credits/links and verified shot classifications | These contracts; populated by conversion |
+| Companion field evidence | Source snapshot/rows, canonical event/field, method and explanation, including missingness reasons | Small declaration types here; complete production evidence/reporting in #13 |
+| Reconstructed state | Running score, possession, lineups, cumulative foul/stat totals, live/dead-ball state | Separate #13 validation/state output, not fields duplicated on canonical events |
 
-Attempt number and total attempts are normally recoverable from descriptions in the inspected NBA samples. Their nullability accommodates unavailable or unresolved information across sources; the samples do not prove a basketball case in which those facts inherently do not exist. Requiring both for a fully validated stream would be a stricter future conversion policy. The approved core retains nullable declarations and does not silently replace missing facts with zero or guessed values.
+Each immutable conversion run retains the canonical dataset and its companion evidence together as separate, version-aligned outputs. Evidence is additional metadata about the dataset, not extra basketball events. Consumers can load the canonical dataset alone; diagnostics follow EventId/FieldName into the matching run's evidence.
 
-Null alone cannot distinguish all reasons for missingness. Conversion/QA (#13) must retain the reason and report unresolved values; the pending provenance design determines where that evidence lives. No other core properties are nullable: identities, names, clocks, teams and collections must be supplied. An empty collection represents no supplied entries, rather than a null collection.
+For example, a goaltending basket is one made `FieldGoalEvent` and a `ViolationEvent` referring to it. Points come from the made shot, once. Its `ShotLocation` remains null until a transformation is verified; companion evidence explains that unresolved value. Reconstructed score after the play belongs to validation output, not to either event.
 
-## Runnable consumer example
+## Identity, order and time
 
-From the repository root:
+All canonical game/team/player/coach/event references are internally allocated `long` identities. Provider identities remain source/string pairs on metadata. Do not cast provider IDs as an allocation policy or substitute zero for missing identities. Populated actors must resolve to the appropriate game metadata. Game-team player/coach lists describe supplied metadata, not proof of participation, active status or complete rosters. Existing game-team constructor calls remain valid; its `Coaches` init property defaults to an empty collection.
+
+Events form one flat chronological stream. Sequence numbers preserve same-clock order. `BasketballClock` supports regulation quarters, arbitrary 1-based overtime numbers and fractional remaining seconds. Overtime number is null in regulation and required in overtime; period length is competition-specific.
+
+`OccurredAtUtc` is nullable `DateTime`. Supported times must have `DateTimeKind.Utc`. Do not interpolate timestamps, substitute response/received times or invent second precision from minute-resolution descriptions. Source date/timezone/precision evidence belongs in companion reporting.
+
+These positional records declare an API, not a validation engine. They do not enforce identity uniqueness, UTC kind, clock consistency, link resolution, participant exclusivity or basketball rules. Collections must be supplied and remain caller-owned; there is no defensive copying or deep-immutability guarantee. #13 enforces invariants and reports unresolved coverage.
+
+## Event contracts and counting
+
+| Contract | Use and important boundaries |
+| --- | --- |
+| `FieldGoalEvent` | All field-goal attempts, including team-credited heaves: type/outcome, nullable physical shooter, mandatory player/team attempt credit, optional assist/block credit, distance/location, style/modifiers and court area. Defensive-goaltending credit is an ordinary made shot, not a separate points award. |
+| `FreeThrowEvent` | One independent attempt, nullable attempt number/count and causative `ParentFoulEventId`. Category describes the award's cause, supported by text or an established parent foul. The category constructor argument is mandatory; callers explicitly pass `NotSet` when unresolved. Subsequent possession is reconstructed separately. |
+| `FoulEvent` | A supplied list of charged `FoulParticipant` records; separate optional fouled player and affected FG reference. The second participant in a double foul is also charged, not automatically the fouled player. |
+| `SubstitutionEvent` | Team, outgoing and incoming players; same-clock order remains significant. |
+| `ReboundEvent` | Player/team credit and supported offensive/defensive classification; at most one missed-FG or missed-FT reference. Team rebounds have no fabricated player. Live/dead-ball state is separate derived output. |
+| `TurnoverEvent` | Team, optional responsible player, observed category and optional steal credit. Combined out-of-bounds bad-pass/lost-ball categories preserve the source distinction. |
+| `TimeoutEvent` | Team, coach-challenge or official timeout; team can be null. No mandatory-timeout classification is inferred from Regular. |
+| `ReviewEvent` | Observed review/ruling, optional requesting team and reviewed event. Supported, RulingStands and Overturned stay distinct. There is no manufactured Started/Completed lifecycle or inferred Inconclusive result. |
+| `ViolationEvent` | Observed violation and optional attempt links. Defensive goaltending can refer to a credited FG or FT; the violation applies no additional score. A violation does not automatically imply a turnover. |
+| `JumpBallEvent` | Supported participants and gaining player/team; unknown identities remain null. |
+| `PeriodBoundaryEvent` | Start/end marker; inherited clock identifies regulation/overtime period. |
+| `EjectionEvent` | Player or coach ejection, with optional charged team; never place a coach into a player ID. |
+
+`FoulParticipant(TeamId, PlayerId, CoachId)` has nullable typed identities. Player and coach are mutually exclusive; team-only entries represent bench/administrative charges. Ordinary known fouls have one charged entry, established double fouls two. Unknown participants/teams require companion findings, not invented actors. Player/coach metadata can establish membership while the charged team on an individual source row remains unresolved.
+
+Foul categories preserve observed personal-take versus transition-take, offensive-charge, defensive-three-second, flopping and technical distinctions. Defensive-three-second rows are represented as fouls. Turnovers include offensive goaltending, inbound, illegal-assist, timed and other observed violations. `Carrying` normalizes the observed Palming Turnover label; DiscontinueDribble remains distinct. No separate basket-interference or points-award type is introduced without source evidence.
+
+A foul's FG reference identifies the attempt on which the foul occurred, made or missed. A supported shooting foul linked to a made shot and continuation FT can establish an and-one; one FT alone cannot. There is no stored and-one flag, nested authoritative FT list, generic relationship graph or duplicated cumulative score/foul/stat totals.
+
+Auxiliary block/steal source rows support the corresponding shot/turnover, without duplicate statistical events. Review rulings themselves do not enact another score or adjustment event. All correction evidence stays outside the canonical stream.
+
+## Classification and missingness
+
+A **heave** is a long-distance desperation shot near the end of a period, often launched from around half court or farther away to beat the buzzer. It is a `FieldGoalEvent` with `ShotModifier.Heave`, not a separate event type. A single `OfType<FieldGoalEvent>()` query includes ordinary shots, made long-range heaves and team-only attempts. NBA's [2025-26 explanation](https://www.nba.com/news/nba-heaves-rule-change-early-results) describes the team-versus-player statistical distinction; the modifier itself is descriptive and does not establish eligibility for a statistical exception.
+
+`FieldGoalAttemptCredit` is a required constructor argument. Player means the attempt is attributed to the shooter as well as the team; Team means team-only statistical attempt credit. NotSet means unresolved attribution. This is not the physical shooter identity: a team-only attempt may still retain a known `ShooterPlayerId`. A player-credited attempt requires a resolved shooter. A source team attempt can have a null shooter, with a missingness explanation; never insert player zero or use the team ID as a player ID.
+
+Keep each effective basketball attempt once. If several provider rows describe it, attach them to that same event's companion evidence. The local overlap check found no ordinary made/missed-shot row at the same period, exact clock and side for any of the 1,199 explicit Heave rows. That diagnostic check is not a complete production duplicate detector; #13 must still reconcile source identities, revisions and reference counts.
+
+All 1,199 explicit team-Heave rows have blank shotResult and shotValue=0. Their source subtype supports Team attempt credit, but does not itself establish a made/missed result or 2/3-point value. Keep those fields NotSet until source/rule/reference evidence establishes them. Do not manufacture a missed three or treat an unresolved result as a verified zero statistical effect. Populated made 2/3-point shots carry their points exactly as ordinary shots; the heave modifier never adds another basket or strips a recorded player's made-shot credit.
+
+All enums start with explicit `NotSet = 0` and explicit sequential values. The four core enums from #8 retain their numeric values. Enums introduced in the unmerged #16 draft were revised before publication; downstream users must rebuild against the final schema. `NotSet` means unresolved/unspecified, never a definite negative; `Other` means an understood category outside the named taxonomy.
+
+Shot style is JumpShot, Layup, Dunk or HookShot, with supported modifiers such as Driving, Reverse, Cutting and Tip. Tip dunks retain Dunk + Tip; Tip layups retain Layup + Tip. Modifiers can coexist. Supply the collection; empty means none positively identified, not proof of absence. Do not insert NotSet into that collection. Style and court area are separate; distance alone does not establish a zone.
+
+Null means unavailable, unresolved or inapplicable according to the field. Companion evidence distinguishes the reason. Optional assist/block/steal credit means no identified credited participant, not proof that no credit occurred. Event links remain null where absent or unestablished. Missing FT numbers/counts represent unresolved facts, not zero attempts; fully assessed dependent checks need known values or an evidenced exception. Unrelated checks can continue.
+
+The inspected FT rows all have blank shotResult; make/miss comes from descriptions. Most subtype labels supply attempt numbers/counts, but unnumbered technical FTs also occur. Rebound subType Unknown does not establish that offensive/defensive classification cannot be derived: original totals and sequence may support it, with evidence.
+
+## Companion evidence usage
+
+These three types currently have one executable consumer: [Program.cs](../examples/SportsModels.Data.Basketball.Examples/Program.cs). Each example keeps a separate `Scenario.Evidence` list, the `Row(...)` helper constructs source references, and the console prints each field's evidence kind and explanation. There is no production converter or report writer using them yet. #13 will populate and export this companion information during conversion/validation; it is not required by scoring or modelling consumers of the canonical events.
+
+| Type | Useful purpose | Example |
+| --- | --- | --- |
+| `BasketballSourceRowReference` | Locate the exact input row supporting a value, even after another download changes the source file. | Follow a snapshot hash and zero-based row index to the Brown shot or Daniels violation; retain both original provider identifiers. |
+| `BasketballEvidenceKind` | Explain whether a value was read, parsed, transformed or linked, or why it was not populated. These are methods/reasons, not confidence scores. | Assist is Parsed from description; shot/violation relationship is Linked; unverified coordinates are Unresolved. |
+| `BasketballFieldEvidence` | Connect that method and source row(s) to a specific internal event field, making conversion results auditable. | If an assist looks wrong, find that event's AssistingPlayerId evidence and inspect the original description instead of searching the whole game. |
+
+`BasketballFieldEvidence` references an internal `EventId`, a canonical `FieldName`, an evidence kind, source rows and an explanation. Prefer `nameof(FieldGoalEvent.Outcome)` over hard-coded property names. Paths into nested participants can be described in the explanation; no reflection framework is introduced.
+
+Kinds are Direct, Parsed, Transformed, Linked, Unresolved and NotApplicable (plus NotSet). Direct/Parsed/Transformed/Linked describe how a populated canonical fact was established. Unresolved/NotApplicable explain null or NotSet without substituting zero, false or fabricated certainty. They do not wrap values in Fact<T> or duplicate canonical values.
+
+Each `BasketballSourceRowReference` identifies a source, immutable snapshot, zero-based source-array row index, and nullable original actionId/actionNumber strings. Snapshot IDs resolve through #13's source manifests; the examples use SHA-256 identifiers of inspected files and separately print filenames. Equal actionNumber values are not unique identities. A content hash alone does not preserve source bytes: production manifests must disclose input availability and identify retained snapshots.
+
+```csharp
+var evidence = new BasketballFieldEvidence(
+    shot.EventId,
+    nameof(FieldGoalEvent.ShotLocation),
+    BasketballEvidenceKind.Unresolved,
+    [sourceRow],
+    "Provider coordinate transformation is not verified; canonical location remains null.");
+```
+
+The snippet assumes `shot` and `sourceRow` have already been supplied; the runnable example below constructs them. These minimal declarations do not constitute complete provenance or coverage. #13 still owns original rows/descriptions/fields, every-row disposition, correction history, reference acquisition, timestamp precision, identity registry, missingness findings, complete field evidence and JSON/CSV reporting. Unmapped source rows have no canonical EventId and must be retained in companion row-accounting reports, not forced into this event-field evidence list. No new derived-state contract or validation engine is imposed here.
+
+## Coordinates
+
+`BasketballShotLocation(XFeet, YFeet)` uses feet from the centre of the attacking basket projected onto the court. Stand at that basket facing centre court: +X is right, +Y toward centre court; court-area left/right use the same viewpoint. Coordinates remain attack-relative across changes of ends. Do not clamp coordinates or replace all zeroes with null.
+
+The source supplies xLegacy/yLegacy and reported distances, but no transformation is implemented or claimed verified here. #13 must verify source scaling/origin/axes/orientation, distance units and applicable court boundaries before populating transformed locations or derived CourtArea. Unverified locations remain null and zones NotSet with companion reasons. Court area can be a canonical classification once established; it need not become reconstructed game state merely because calculation was necessary.
+
+## Corrected history and task boundaries
+
+Canonical events contain understood, corrected effective history. Apply evidence-supported source amendments to the affected play and omit cancelled plays. No unknown-placeholder events, correction instructions, cancellation records, superseded versions or synthetic score-adjustment events belong in the unified stream. Ambiguous effective results require explicit partial/uncertain coverage; dependent checks remain not assessable while independent work can continue. Previous run outputs remain unchanged.
+
+[#13](https://github.com/TeddyMc/SportsModels.Basketball/issues/13) owns acquisition, conversion, identity/SQLite persistence, complete companion evidence and reconstructed state/validation. It accounts for every source row as mapped, supporting another event, superseded/cancelled/non-event metadata, or unresolved, with reasons and affected coverage. Supporting roster/box-score acquisition follows the shared raw acquisition flow, separate from local conversion. Core metadata and manually curated example identities are not acquired reference evidence. [#15](https://github.com/TeddyMc/SportsModels.Basketball/issues/15) owns substantive speculative repair.
+
+## Runnable source-derived selections
 
 ```sh
 dotnet run --project examples/SportsModels.Data.Basketball.Examples
 ```
 
-[Program.cs](../examples/SportsModels.Data.Basketball.Examples/Program.cs) constructs a synthetic game with independent internal/provider IDs and game-team player metadata. It consumes polymorphic events, querying two free throws linked to foul ID 900 with an opposing-team substitution between attempts at the same clock. A second-overtime substitution demonstrates fractional remaining time and an explicit UTC timestamp; the other timestamps are null.
+[Program.cs](../examples/SportsModels.Data.Basketball.Examples/Program.cs) manually constructs selected events from six inspected snapshots, with independent internal IDs and separate field evidence:
 
-This is a partial stream illustrating the core API: foul 900 has no corresponding concrete record because the foul schema is not approved. It is not a complete, reference-resolved game. No production foul type is invented to make the example compile. Overtime is synthetic, not verified against live source data. Player lists are illustrative, not complete rosters.
+| Local source file | Representative action IDs |
+| --- | --- |
+| ATL@BOS_20260128_0022500673.json | 33–36: shooting foul and two FTs interrupted by substitution; 329: Joe Mazzulla technical; 417/418: Brown made 2 and Daniels defensive goaltending |
+| ATL@BKN_20260403_0022501122.json | 300: Clowney/Gueye double technical; 306/307: Clowney technical and ejection |
+| BKN@POR_20260323_0022501045.json | 331: Cissoko/Minott double personal |
+| ATL@PHI_20251130_0022500304.json | 596: second-OT start; 632/633: missed shot/block at 59.60 seconds; 634/635: team rebound/timeout; 636: made shot; 651: end |
+| BKN@IND_20251105_0022500173.json | 270: Rick Carlisle coach ejection |
+| ATL@DAL_20260318_0022501006.json | 374: Kuminga's recorded 73-foot made three at Q3 3.60 seconds; 375: supporting review; 376: Dallas team-Heave row at 0.30 seconds with no identified shooter/value/outcome |
 
-## Deferred scope
+The consumer checks the selected goaltending link/one made basket, interrupted FT order, double-charge structure, coach identity, fractional second overtime and a unified shot query containing both the made three and team-only heave. The recorded 73-foot shot at 3.60 seconds is tagged descriptively from its distance/time, not declared eligible for an NBA statistical exception. It prints Direct, Parsed, Linked and Unresolved evidence. No transformed coordinates are invented, and no example claims complete field evidence, UTC conversion or full-game reconstruction. Game/team/name associations are curated for the example, not produced by a tested production resolver. Source-row charged teams remain null where unsupported even when metadata associates a coach with a team.
 
-The full issue remains incomplete: remaining event types/taxonomies, shot-coordinate conventions, provenance and unsupported/corrected-event behavior require approval. No provider conversion, identity allocation, cleaning, network/storage, serialization framework or ingestion changes are included. Conversion and QA belong to #13; roster/box-score enrichment remains separate follow-up work. Full source-mapped examples and a real overtime fixture remain outstanding.
+No raw downloads or live NBA access are needed to run these constructions. The original snapshot hashes tie the examples to the inspected inputs, but those bulk inputs are not committed. The local inventory covered 1,400 files/707,440 rows; its full evidence, sampling scope, observed categories and limitations are recorded in #16. These selections are contract demonstrations, not validated complete games or proof of source parsing, corrected-history reconciliation, team-heave counts or reference-stat agreement.

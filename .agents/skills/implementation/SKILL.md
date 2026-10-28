@@ -24,5 +24,11 @@ These instructions apply to both agents. Use the tools available in the current 
 - Before retrying an uncertain creation result, check for an existing PR for the head/base branches to avoid duplicates. Confirm creation from a returned PR URL/number or a GitHub lookup. Report the actual URL and draft/open state; keep the PR unmerged.
 - Use a draft when required acceptance evidence is still missing, and explain the limitation in the description. An environment-blocked smoke test must not be presented as a successful live run.
 
+## Discussing PR review comments
+
+- When the user flags PR comments, read them and answer their questions in the conversation window so the user can discuss them here. Explain the reasoning and recommendation; do not substitute documentation edits, GitHub replies or a list of completed changes for those answers.
+- Distinguish requested code changes from questions or design suggestions. Proceed with clear, authorized fixes; discuss material design questions here before changing the design. State which changes were made and which points remain open.
+- Documentation and any GitHub thread replies supplement the conversation. If replies are posted on GitHub, include their substance here too, and accurately state where responses were left.
+
 ## Safety
 Never commit credentials, sensitive data, large downloaded datasets or employer IP. Do not modify unrelated code or perform destructive operations without approval. Keep generated data outside version control.
