@@ -1,6 +1,6 @@
 namespace SportsModels.Data.Basketball.Contracts;
 
-/// <summary>A basketball review; its result does not itself apply another statistical effect.</summary>
+/// <summary>An observed basketball review/ruling, not a manufactured start/completion lifecycle.</summary>
 public sealed record ReviewEvent(
     long EventId,
     int SequenceNumber,
@@ -8,7 +8,6 @@ public sealed record ReviewEvent(
     DateTime? OccurredAtUtc,
     long? RequestingTeamId,
     ReviewType ReviewType,
-    ReviewPhase Phase,
     ReviewOutcome Outcome,
     long? RelatedEventId)
     : BasketballPlayByPlayEvent(

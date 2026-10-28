@@ -7,9 +7,7 @@ public enum ViolationType
     JumpBall = 2,
     KickedBall = 3,
     DoubleLane = 4,
-    DefensiveThreeSeconds = 5,
-    Goaltending = 6,
-    BasketInterference = 7,
-    DelayOfGame = 8,
-    Other = 9
+    DefensiveGoaltending = 5,
+    DelayOfGame = 6,
+    Other = 7
 }

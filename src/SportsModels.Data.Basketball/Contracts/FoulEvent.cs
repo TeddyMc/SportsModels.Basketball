@@ -1,13 +1,12 @@
 namespace SportsModels.Data.Basketball.Contracts;
 
-/// <summary>A foul; the related field goal is the attempt on which it occurred, made or missed.</summary>
+/// <summary>A foul with one or more charged participants; related field goal identifies the affected attempt.</summary>
 public sealed record FoulEvent(
     long EventId,
     int SequenceNumber,
     BasketballClock Clock,
     DateTime? OccurredAtUtc,
-    long? TeamId,
-    long? CommittingPlayerId,
+    IReadOnlyList<FoulParticipant> CommittingParticipants,
     long? FouledPlayerId,
     FoulType FoulType,
     long? RelatedFieldGoalEventId)

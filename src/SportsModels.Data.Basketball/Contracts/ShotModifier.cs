@@ -15,5 +15,7 @@ public enum ShotModifier
     Putback = 10,
     Bank = 11,
     Floating = 12,
-    Other = 13
+    Cutting = 13,
+    Tip = 14,
+    Other = 15
 }

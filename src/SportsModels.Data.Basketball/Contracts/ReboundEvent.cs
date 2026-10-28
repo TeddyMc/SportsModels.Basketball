@@ -1,6 +1,6 @@
 namespace SportsModels.Data.Basketball.Contracts;
 
-/// <summary>A rebound linked to at most one missed attempt; team credit requires no fictitious player.</summary>
+/// <summary>A rebound linked to at most one missed attempt; live/dead-ball state is reconstructed separately.</summary>
 public sealed record ReboundEvent(
     long EventId,
     int SequenceNumber,
@@ -10,7 +10,6 @@ public sealed record ReboundEvent(
     long? ReboundingPlayerId,
     ReboundType ReboundType,
     ReboundCredit Credit,
-    bool? IsLiveBall,
     long? RelatedFieldGoalEventId,
     long? RelatedFreeThrowEventId)
     : BasketballPlayByPlayEvent(

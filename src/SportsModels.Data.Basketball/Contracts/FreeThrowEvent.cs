@@ -4,7 +4,7 @@ namespace SportsModels.Data.Basketball.Contracts;
 /// <remarks>
 /// Attempt numbers/counts are real facts when known; null means unavailable or unresolved, never zero.
 /// Missing values must be surfaced by conversion/QA rather than guessed.
-/// Category describes the award's cause; possession treatment does not assert the next possessing team.
+/// Category describes the award's cause; subsequent possession is reconstructed separately.
 /// </remarks>
 /// <param name="EventId">An internally allocated event identity.</param>
 /// <param name="SequenceNumber">Fine-grained order, including events sharing a clock value.</param>
@@ -17,7 +17,6 @@ namespace SportsModels.Data.Basketball.Contracts;
 /// <param name="TotalAttempts">Number of attempts in the associated award when established; null when unavailable or unresolved.</param>
 /// <param name="ParentFoulEventId">Internal foul-event ID when a causal foul is established; null when absent or unresolved.</param>
 /// <param name="Category">Award cause, independent of attempt count; NotSet means unspecified.</param>
-/// <param name="PossessionRule">Award possession treatment; applicable rules and context are still required.</param>
 public sealed record FreeThrowEvent(
     long EventId,
     int SequenceNumber,
@@ -29,8 +28,7 @@ public sealed record FreeThrowEvent(
     int? AttemptNumber,
     int? TotalAttempts,
     long? ParentFoulEventId,
-    FreeThrowCategory Category = FreeThrowCategory.NotSet,
-    FreeThrowPossessionRule PossessionRule = FreeThrowPossessionRule.NotSet)
+    FreeThrowCategory Category = FreeThrowCategory.NotSet)
     : BasketballPlayByPlayEvent(
         EventId,
         SequenceNumber,

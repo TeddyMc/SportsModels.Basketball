@@ -1,6 +1,6 @@
 namespace SportsModels.Data.Basketball.Contracts;
 
-/// <summary>A separately reported heave not established as an official attempt; implies no miss or points.</summary>
+/// <summary>A separately reported team heave; player/team statistical treatment requires source verification.</summary>
 public sealed record HeaveEvent(
     long EventId,
     int SequenceNumber,

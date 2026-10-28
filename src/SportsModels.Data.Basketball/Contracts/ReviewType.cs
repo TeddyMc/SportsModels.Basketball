@@ -5,5 +5,7 @@ public enum ReviewType
     NotSet = 0,
     OfficialReview = 1,
     CoachChallenge = 2,
-    Other = 3
+    ReplayCenter = 3,
+    Altercation = 4,
+    Other = 5
 }
