@@ -28,6 +28,8 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
     {
         snapshot = snapshotId;
         using var doc = JsonDocument.Parse(bytes);
+        if (doc.RootElement.TryGetProperty("meta", out var meta) && meta.Number("version") != 1)
+        { throw new InvalidDataException("Unsupported playbyplayv3 response version."); }
         var sourceGame = doc.RootElement.GetProperty("game");
         var gameId = sourceGame.Text("gameId");
         if (gameId.Length != 10 || gameId.Any(c => !char.IsAsciiDigit(c))) { throw new InvalidDataException("Invalid game identity."); }
@@ -47,10 +49,27 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
         var events = new List<BasketballPlayByPlayEvent>();
         var dispositions = new List<SourceRowDisposition>();
         var actionCounts = rows.GroupBy(x => x.Key("actionId")).ToDictionary(g => g.Key, g => g.Count());
+        var conflictingActions = rows.Where(r => r.Key("actionId") != "").GroupBy(r => r.Key("actionId"))
+            .Where(g => g.Count() > 1 && g.Select(SourceJson.Fingerprint).Distinct().Count() > 1).Select(g => g.Key).ToHashSet();
+        var repeatedRows = new Dictionary<string, int>();
 
         for (var index = 0; index < rows.Length; index++)
         {
             var row = rows[index];
+            if (conflictingActions.Contains(row.Key("actionId")))
+            {
+                dispositions.Add(new(index, row, "Unresolved", [], "Conflicting rows share actionId; effective correspondence is not guessed."));
+                Add("INPUT.CONFLICTING_ACTION_ID", CheckStatus.NotAssessable, index, "Duplicated actionId with different row contents; all conflicting versions retained outside canonical data.");
+                continue;
+            }
+            var fingerprint = SourceJson.Fingerprint(row);
+            if (row.Key("actionId") != "" && repeatedRows.TryGetValue(fingerprint, out var earlier))
+            {
+                dispositions.Add(new(index, row, "Duplicate", dispositions[earlier].EventIds, $"Identical source row including actionId already retained at row {earlier}; no second statistical event."));
+                Add("INPUT.DUPLICATE_ROW", CheckStatus.Fail, index, $"Exact repeated source row {earlier}; duplicate effect excluded.");
+                continue;
+            }
+            repeatedRows[fingerprint] = index;
             if (row.Text("actionType") == "" && Regex.IsMatch(row.Text("description"), @"\b(STEAL|BLOCK)\b"))
             {
                 dispositions.Add(new(index, row, "PendingCredit", [], "Auxiliary statistical credit; matched after primary conversion."));
@@ -77,7 +96,6 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
                 }
                 events.Add(converted);
                 dispositions.Add(new(index, row, "Mapped", [id], "Effective event mapped from this row; original values retained."));
-                ExplainFields(converted, index);
             }
             catch (Exception exception) when (exception is FormatException or InvalidDataException or InvalidOperationException or OverflowException)
             {
@@ -86,7 +104,9 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
             }
         }
         AttachCredits(events, dispositions);
-        LinkEvents(events);
+        LinkEvents(events, dispositions.Where(r => r.Disposition == "Unresolved").Select(r => r.RowIndex + 1).ToHashSet());
+        var explainedFields = evidence.Select(e => (e.EventId, e.FieldName)).ToHashSet();
+        foreach (var item in events) { ExplainFields(item, item.SequenceNumber - 1, explainedFields); }
         var home = Team(homeSource);
         var away = Team(awaySource);
         var game = new BasketballGamePlayByPlay(internalGame, [Source(gameId)], home, away, events);
@@ -109,7 +129,12 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
             dispositions.Any(x => x.Disposition == "Unresolved" && x.Original.Text("actionType") == ""),
             "Reference interval/minute precision must be verified; no reference means not assessable. Final status unavailable unless independently supplied.")
         {
-            Gaps = dispositions.Where(x => x.Disposition == "Unresolved").Select(x => Gap(x.Original, x.RowIndex + 1)).ToArray()
+            Gaps = dispositions.Where(x => x.Disposition == "Unresolved").Select(x => Gap(x.Original, x.RowIndex + 1))
+                .Concat(checks.Where(c => c.Code == "IDENTITY.FOUL_ACTOR" && c.SourceRows is not null)
+                    .Select(c => new CoverageGap(c.SourceRows![0] + 1, ["PF"], false, false, "Unresolved charged actor")))
+                .Concat(checks.Where(c => c.Code == "IDENTITY.NAME" && c.EventId is not null)
+                    .Select(c => new CoverageGap(events.Single(e => e.EventId == c.EventId).SequenceNumber, ["AST"], false, false, "Unresolved described assist credit"))).ToArray(),
+            FoulCounts = FoulCounts(events)
         };
         checks.Add(new("TIME.UTC", CheckStatus.NotAssessable,
             "Description wall clocks are minute precision; game date/timezone/midnight evidence is not verified. OccurredAtUtc remains null."));
@@ -117,6 +142,11 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
             "xLegacy/yLegacy axes/orientation and court areas are unverified; retained raw, canonical location/distance/area unset."));
         checks.Add(new("GAME.STATUS", CheckStatus.NotAssessable,
             "Period-end rows alone do not independently establish official final/suspended status."));
+        var mappedIds = events.Select(e => e.EventId).ToHashSet();
+        for (var i = 0; i < checks.Count; i++)
+        {
+            if (checks[i].EventId is long eventId && !mappedIds.Contains(eventId)) { checks[i] = checks[i] with { EventId = null }; }
+        }
         return new(game, dispositions, evidence, checks, context, competition);
     }
 
@@ -154,6 +184,28 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
                 RegisterPlayer(row.Key("personId"), row.Key("teamId"), row.Text("playerNameI"), [row.Text("playerName"), row.Text("playerNameI")]);
             }
         }
+        foreach (var (team, key, name) in references.RosterPlayers)
+        {
+            if (players.TryGetValue(key, out var known) && known.Team == team)
+            {
+                known.Aliases.Add(SourceJson.Normalize(name));
+                continue;
+            }
+            // Season roster membership alone is not historical game membership (trades occur).
+            // A named incoming substitution for this team supplies the additional game evidence.
+            var incomingRows = rows.Where(r => r.Text("actionType") == "Substitution" && r.Key("teamId") == team
+                && SourceJson.Normalize(r.Text("description").Split(" FOR ")[0].Replace("SUB: ", "", StringComparison.Ordinal)) == SourceJson.Normalize(name.Split(' ')[^1])).ToArray();
+            var sameName = references.RosterPlayers.Count(p => p.TeamId == team && p.Name.Split(' ')[^1] == name.Split(' ')[^1]);
+            if (!players.ContainsKey(key) && incomingRows.Length > 0 && sameName == 1)
+            { RegisterPlayer(key, team, name, [name.Split(' ')[^1]]); }
+        }
+        foreach (var (team, key, name) in references.Coaches.Where(c => teams.ContainsKey(c.TeamId)))
+        {
+            var observed = rows.Any(r => r.Key("personId") == key && r.Text("actionType") is "Foul" or "Ejection");
+            if (!observed) { continue; }
+            var id = Resolve("Coach", key, $"NBA season coach roster and matching game source actor {key}; snapshot {snapshot}.");
+            coaches[key] = new(id, key, team, name, [SourceJson.Normalize(name)]);
+        }
         // Coach rows observed with no team/player metadata cannot safely be attached to a game team.
         // Resolve registry identity with role evidence from the paired named coach ejection, retain missing team.
         foreach (var row in rows.Where(r => r.Text("actionType") == "Ejection" && r.Text("playerName") == ""
@@ -163,7 +215,7 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
             if (name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < 2) { continue; }
             var team = row.Key("teamId");
             var id = Resolve("Coach", row.Key("personId"), $"Named non-player ejection {snapshot}: {row.GetRawText()}");
-            coaches[row.Key("personId")] = new(id, row.Key("personId"), team, name, [SourceJson.Normalize(name)]);
+            coaches.TryAdd(row.Key("personId"), new(id, row.Key("personId"), team, name, [SourceJson.Normalize(name)]));
         }
     }
 
@@ -317,9 +369,17 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
         foreach (var disposition in dispositions.Where(x => x.Disposition == "PendingCredit").ToArray())
         {
             var row = disposition.Original;
+            BasketballClock creditClock;
+            try { creditClock = Clock(row); }
+            catch (Exception exception) when (exception is FormatException or OverflowException)
+            {
+                dispositions[disposition.RowIndex] = disposition with { Disposition = "Unresolved", Explanation = exception.Message };
+                Add("CREDIT.UNRESOLVED", CheckStatus.NotAssessable, disposition.RowIndex, "Auxiliary row has an invalid clock.");
+                continue;
+            }
             var block = row.Text("description").Contains("BLOCK", StringComparison.Ordinal);
             var actor = players.GetValueOrDefault(row.Key("personId"));
-            var candidates = events.Where(e => e.Clock == Clock(row) && rows[e.SequenceNumber - 1].Text("actionNumber") == row.Text("actionNumber")
+            var candidates = events.Where(e => e.Clock == creditClock && rows[e.SequenceNumber - 1].Text("actionNumber") == row.Text("actionNumber")
                 && (block ? e is FieldGoalEvent { Outcome: ShotOutcome.Missed or ShotOutcome.NotSet } : e is TurnoverEvent)).ToArray();
             if (actor is not null && candidates.Length == 1)
             {
@@ -342,15 +402,26 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
         }
     }
 
-    private void LinkEvents(List<BasketballPlayByPlayEvent> events)
+    private void LinkEvents(List<BasketballPlayByPlayEvent> events, HashSet<int> unresolved)
     {
         var reboundCounts = new Dictionary<long, (int Off, int Def)>();
         for (var i = 0; i < events.Count; i++)
         {
             var current = events[i];
-            var sameClock = events.Take(i).Reverse().TakeWhile(e => e.Clock == current.Clock).ToArray();
+            var sameClock = events.Take(i).Reverse().TakeWhile(e => e.Clock == current.Clock
+                && !unresolved.Any(s => s > e.SequenceNumber && s < current.SequenceNumber)).ToArray();
             if (current is FreeThrowEvent ft)
             {
+                // A generic numbered FT label does not exclude a retained-possession award.
+                var special = sameClock.OfType<FoulEvent>().Where(f => f.CommittingParticipants.All(p => p.TeamId is not null && p.TeamId != ft.TeamId)
+                    && f.FoulType is FoulType.TransitionTake or FoulType.AwayFromPlay or FoulType.DefensiveThreeSeconds).ToArray();
+                if (ft.Category == FreeThrowCategory.Ordinary && special.Length == 1)
+                {
+                    ft = ft with { Category = special[0].FoulType switch
+                    { FoulType.TransitionTake => FreeThrowCategory.TransitionTake, FoulType.AwayFromPlay => FreeThrowCategory.AwayFromPlay, _ => FreeThrowCategory.DefensiveThreeSeconds } };
+                    events[i] = ft;
+                    Link(ft.EventId, "Category", ft.SequenceNumber - 1, special[0].SequenceNumber - 1);
+                }
                 var fouls = sameClock.OfType<FoulEvent>().Where(f => f.CommittingParticipants.All(p => p.TeamId is not null && p.TeamId != ft.TeamId)
                     && Compatible(f.FoulType, ft.Category)).ToArray();
                 if (fouls.Length == 1) { events[i] = ft with { ParentFoulEventId = fouls[0].EventId }; Link(ft.EventId, "ParentFoulEventId", ft.SequenceNumber - 1, fouls[0].SequenceNumber - 1); }
@@ -377,7 +448,8 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
                     if (def == previous.Def + 1 && off == previous.Off) { subtype = ReboundType.Defensive; }
                     reboundCounts[player] = (off, def);
                 }
-                if (missed && prior!.Clock.Period == current.Clock.Period && prior.Clock.OvertimePeriodNumber == current.Clock.OvertimePeriodNumber)
+                if (missed && !unresolved.Any(s => s > prior!.SequenceNumber && s < current.SequenceNumber)
+                    && prior!.Clock.Period == current.Clock.Period && prior.Clock.OvertimePeriodNumber == current.Clock.OvertimePeriodNumber)
                 {
                     events[i] = rebound with { ReboundType = subtype, RelatedFieldGoalEventId = fg?.EventId, RelatedFreeThrowEventId = ftPrior?.EventId };
                     Link(rebound.EventId, fg is null ? "RelatedFreeThrowEventId" : "RelatedFieldGoalEventId", rebound.SequenceNumber - 1, prior.SequenceNumber - 1);
@@ -393,7 +465,8 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
                 var latestAttempt = segment.FirstOrDefault(e => e is FreeThrowEvent or FieldGoalEvent);
                 var targetTeam = latestAttempt is FieldGoalEvent s ? s.TeamId : (latestAttempt as FreeThrowEvent)?.TeamId;
                 var made = latestAttempt is FieldGoalEvent { Outcome: ShotOutcome.Made } or FreeThrowEvent { Outcome: ShotOutcome.Made };
-                if (made && targetTeam is not null && violation.TeamId is not null && targetTeam != violation.TeamId
+                if (made && latestAttempt!.SequenceNumber == violation.SequenceNumber - 1
+                    && targetTeam is not null && violation.TeamId is not null && targetTeam != violation.TeamId
                     && rows[latestAttempt!.SequenceNumber - 1].Text("description").Contains("PTS", StringComparison.Ordinal))
                 {
                     events[i] = violation with { RelatedFieldGoalEventId = (latestAttempt as FieldGoalEvent)?.EventId,
@@ -411,14 +484,18 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
         FreeThrowCategory.Technical => foul is FoulType.Technical or FoulType.DoubleTechnical or FoulType.DefensiveThreeSeconds or FoulType.DelayTechnical or FoulType.Flopping or FoulType.Bench,
         FreeThrowCategory.Flagrant => foul is FoulType.FlagrantOne or FoulType.FlagrantTwo,
         FreeThrowCategory.ClearPath => foul == FoulType.ClearPath,
+        FreeThrowCategory.TransitionTake => foul == FoulType.TransitionTake,
+        FreeThrowCategory.AwayFromPlay => foul == FoulType.AwayFromPlay,
+        FreeThrowCategory.DefensiveThreeSeconds => foul == FoulType.DefensiveThreeSeconds,
         FreeThrowCategory.Ordinary => foul is FoulType.Shooting or FoulType.Personal or FoulType.LooseBall or FoulType.PersonalTake,
         _ => false
     };
 
-    private void ExplainFields(BasketballPlayByPlayEvent converted, int index)
+    private void ExplainFields(BasketballPlayByPlayEvent converted, int index, HashSet<(long, string)> explained)
     {
         foreach (var property in converted.GetType().GetProperties().Where(p => p.Name is not ("EventId" or "SequenceNumber")))
         {
+            if (!explained.Add((converted.EventId, property.Name))) { continue; }
             var value = property.GetValue(converted);
             var missing = value is null || value is Enum e && System.Convert.ToInt32(e, CultureInfo.InvariantCulture) == 0;
             evidence.Add(new(converted.EventId, property.Name, missing ? BasketballEvidenceKind.Unresolved
@@ -426,6 +503,31 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
                 [Row(index)], missing ? "Unavailable, unresolved or inapplicable; original row retained. No default fact inferred."
                     : "Source fields/description interpreted with typed NBA semantics; identities resolve through the versioned registry."));
         }
+    }
+
+    private FoulCountObservation[] FoulCounts(List<BasketballPlayByPlayEvent> events)
+    {
+        var result = new List<FoulCountObservation>();
+        foreach (var foul in events.OfType<FoulEvent>())
+        {
+            var row = rows[foul.SequenceNumber - 1];
+            if (foul.FoulType == FoulType.DoublePersonal)
+            {
+                var matches = Regex.Matches(row.Text("description"), @"([^,\-]+) \((\d+) PF\)");
+                foreach (Match match in matches)
+                {
+                    var person = ByName(match.Groups[1].Value.Trim(), null, foul.SequenceNumber - 1);
+                    if (person is not null) { result.Add(new(foul.SequenceNumber, person.Id, int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture), foul.SequenceNumber - 1)); }
+                }
+            }
+            else
+            {
+                var match = Regex.Match(row.Text("description"), @"\(P(\d+)(?:[.)])");
+                var person = players.GetValueOrDefault(row.Key("personId"));
+                if (match.Success && person is not null) { result.Add(new(foul.SequenceNumber, person.Id, int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture), foul.SequenceNumber - 1)); }
+            }
+        }
+        return result.ToArray();
     }
 
     private void Link(long id, string field, int row, int supporting) => evidence.Add(new(id, field,
@@ -448,7 +550,7 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
     }
 
     private void Add(string code, CheckStatus status, int row, string reason, long? id = null) =>
-        checks.Add(new(code, status, reason, id, SourceRows: [row]));
+        checks.Add(new(code, status, reason, id, Severity: status == CheckStatus.Fail ? FindingSeverity.Warning : null, SourceRows: [row]));
 
     private static BasketballClock Clock(JsonElement row) => new(row.Number("period") <= 4 ? (BasketballPeriod)row.Number("period") : BasketballPeriod.Overtime,
         row.Number("period") <= 4 ? null : row.Number("period") - 4, TimeSpan.FromSeconds(SourceJson.Remaining(row.Text("clock"))));

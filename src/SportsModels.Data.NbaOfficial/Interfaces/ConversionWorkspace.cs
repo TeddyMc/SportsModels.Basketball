@@ -6,6 +6,7 @@ internal interface IConversionWorkspace
 {
     IEnumerable<string> EnumerateInputs(string directory);
     Task<byte[]> ReadAsync(string path, CancellationToken cancellationToken);
+    bool Exists(string path);
     ReferenceBundle ReadReferences(string directory, string gameId);
     string CreateRun(string output, string runId);
     Task WriteBytesAsync(string path, byte[] bytes, CancellationToken cancellationToken);

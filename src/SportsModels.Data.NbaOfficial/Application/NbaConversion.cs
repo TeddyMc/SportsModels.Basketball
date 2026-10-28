@@ -23,6 +23,15 @@ internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValid
         var findings = new StringBuilder("game,input,code,status,severity,event,period,entity,stat,expected,observed,evidence\n");
         var selected = 0;
         var seen = new HashSet<string>();
+        var retained = new HashSet<string>();
+        var implementation = new List<object>();
+        foreach (var assembly in new[] { typeof(NbaConversion).Assembly, typeof(IBasketballValidator).Assembly })
+        {
+            var bytes = await workspace.ReadAsync(assembly.Location, cancellationToken);
+            var relative = Path.Combine("implementation", Path.GetFileName(assembly.Location));
+            await workspace.WriteBytesAsync(Path.Combine(run, relative), bytes, cancellationToken);
+            implementation.Add(new { Path = relative, Sha256 = SourceJson.Hash(bytes) });
+        }
         await workspace.WriteJsonAsync(Path.Combine(run, "started.json"), new { RunId = runId, ConverterVersion = Version,
             RegistryId = registry.RegistryId, RegistryStartRevision = registry.Revision, CreatedAtUtc = DateTime.UtcNow,
             InputDirectory = Path.GetFullPath(request.InputDirectory), ReferenceDirectory = Path.GetFullPath(request.ReferenceDirectory),
@@ -36,9 +45,11 @@ internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValid
             var key = "";
             var inputs = new List<InputSnapshot>();
             var dispositions = new List<SourceRowDisposition>();
+            byte[]? inputBytes = null;
             try
             {
                 var bytes = await workspace.ReadAsync(path, cancellationToken);
+                inputBytes = bytes;
                 var hash = SourceJson.Hash(bytes);
                 key = hash;
                 using var document = JsonDocument.Parse(bytes);
@@ -48,11 +59,11 @@ internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValid
                 key = gameId + "-" + hash[..16];
                 if (!seen.Add(key)) { continue; }
                 selected++;
-                inputs.Add(await Retain(path, bytes, "playbyplayv3", run, cancellationToken));
+                inputs.Add(await Retain(path, bytes, "playbyplayv3", run, retained, cancellationToken));
                 var references = workspace.ReadReferences(request.ReferenceDirectory, gameId);
                 foreach (var (referencePath, referenceBytes) in references.Files)
                 {
-                    inputs.Add(await Retain(referencePath, referenceBytes, Path.GetFileName(referencePath).Split('-')[0], run, cancellationToken));
+                    inputs.Add(await Retain(referencePath, referenceBytes, Path.GetFileName(referencePath).Split('-')[0], run, retained, cancellationToken));
                 }
                 var converted = registry.InTransaction(() => new NbaGameConverter(registry).Convert(bytes, hash, references));
                 dispositions = converted.Rows;
@@ -62,8 +73,8 @@ internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValid
                 var status = partial ? "Partial" : "ConvertedWithDiagnostics";
                 var report = new GameConversionReport(runId, gameId, converted.Competition, status, registry.RegistryId, registry.Revision,
                     inputs, dispositions, converted.Evidence, checks, validation, null);
-                await workspace.WriteJsonAsync(Path.Combine(run, "games", key + ".json"), converted.Game, cancellationToken);
                 await workspace.WriteJsonAsync(Path.Combine(run, "reports", key + ".json"), report, cancellationToken);
+                await workspace.WriteJsonAsync(Path.Combine(run, "games", key + ".json"), converted.Game, cancellationToken);
                 summaries.Add((gameId, key, converted.Competition, status, dispositions.Count, dispositions.Count(r => r.Disposition == "Mapped" || r.Disposition == "Supporting"),
                     dispositions.Count(r => r.Disposition == "Unresolved"), converted.Game.Events.Count,
                     checks.Count(c => c.Status == CheckStatus.Fail), checks.Count(c => c.Status is CheckStatus.Pass or CheckStatus.Fail), checks.Count(c => c.Status == CheckStatus.NotAssessable)));
@@ -74,6 +85,8 @@ internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValid
             {
                 if (key == "") { key = "unreadable-" + Guid.NewGuid().ToString("N"); }
                 if (inputs.Count == 0) { selected++; }
+                if (inputs.Count == 0 && inputBytes is not null)
+                { inputs.Add(await Retain(path, inputBytes, "playbyplayv3", run, retained, cancellationToken)); }
                 failureCount++;
                 var check = new CheckResult("CONVERSION.STRUCTURE", CheckStatus.Fail, exception.Message, Severity: FindingSeverity.Error);
                 var report = new GameConversionReport(runId, gameId, "Unknown", "Failed", registry.RegistryId, registry.Revision,
@@ -93,6 +106,7 @@ internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValid
         await workspace.WriteTextAsync(Path.Combine(run, "games.csv"), summary.ToString(), cancellationToken);
         await workspace.WriteTextAsync(Path.Combine(run, "checks.csv"), aggregates.ToString(), cancellationToken);
         await workspace.WriteTextAsync(Path.Combine(run, "findings.csv"), findings.ToString(), cancellationToken);
+        registry.Backup(Path.Combine(run, "registry.sqlite"));
         await workspace.WriteTextAsync(Path.Combine(run, "summary.md"), $"# NBA conversion diagnostics\n\nRun `{runId}`, converter `{Version}`, registry `{registry.RegistryId}` at revision {registry.Revision}.\n\n"
             + $"Attempted {summaries.Count}; converted {summaries.Count - failureCount}; failed {failureCount}. Source rows {summaries.Sum(s => s.Rows)}; unresolved {summaries.Sum(s => s.Unknown)}.\n\n"
             + "These outputs are retrospective diagnostic data. Converted does not mean fully validated or clean. Scoring/foul coverage, lineup/minutes coverage and wider possession/stat coverage must be assessed separately in each game's checks.\n\n"
@@ -105,24 +119,37 @@ internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValid
             RunId = runId, ConverterVersion = Version, CheckVersion = Version,
             RegistryId = registry.RegistryId, RegistryRevision = registry.Revision,
             AssemblyVersion = typeof(NbaConversion).Assembly.GetName().Version?.ToString(),
+            Implementation = implementation,
             Complete = true, Attempted = summaries.Count, Converted = summaries.Count - failureCount, Failed = failureCount,
             Inputs = snapshots.DistinctBy(s => s.SnapshotId).ToArray(), CompletedAtUtc = DateTime.UtcNow,
-            HistoricalInputsAvailable = true, RegistryHistoryRequired = true
+            HistoricalInputsAvailable = true, RegistrySnapshot = "registry.sqlite"
         }, cancellationToken);
         return new(runId, run, summaries.Count, summaries.Count - failureCount, failureCount);
     }
 
-    private async Task<InputSnapshot> Retain(string path, byte[] bytes, string endpoint, string run, CancellationToken cancellationToken)
+    private async Task<InputSnapshot> Retain(string path, byte[] bytes, string endpoint, string run, HashSet<string> retained, CancellationToken cancellationToken)
     {
         var hash = SourceJson.Hash(bytes);
         var relative = Path.Combine("inputs", hash + ".json");
-        if (File.Exists(Path.Combine(run, relative)))
+        if (!retained.Add(hash))
         {
             if (!(await workspace.ReadAsync(Path.Combine(run, relative), cancellationToken)).SequenceEqual(bytes))
             { throw new InvalidDataException("Retained snapshot hash collision or corruption."); }
         }
         else { await workspace.WriteBytesAsync(Path.Combine(run, relative), bytes, cancellationToken); }
-        return new(hash, Path.GetFullPath(path), relative, hash, bytes.LongLength, endpoint, null, true);
+        DateTime? retrieved = null;
+        var sidecar = path + ".retrieval.json";
+        if (workspace.Exists(sidecar))
+        {
+            try
+            {
+                using var metadata = JsonDocument.Parse(await workspace.ReadAsync(sidecar, cancellationToken));
+                if (metadata.RootElement.TryGetProperty("RetrievedAtUtc", out var time) && time.TryGetDateTime(out var value))
+                { retrieved = value.ToUniversalTime(); }
+            }
+            catch (JsonException) { /* Raw bytes remain retained; malformed optional metadata supplies no timestamp. */ }
+        }
+        return new(hash, Path.GetFullPath(path), relative, hash, bytes.LongLength, endpoint, retrieved, true);
     }
 
     private static void AddChecks(IEnumerable<CheckResult> checks, string game, string key,

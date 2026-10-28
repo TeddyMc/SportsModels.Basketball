@@ -11,6 +11,7 @@ public sealed class BasketballValidator : IBasketballValidator
         CheckIdentities(game, checks);
         CheckTime(game, context, checks);
         CheckScores(game, context, checks);
+        FoulDiagnostics.Check(game, context, checks);
         var stints = LineupDiagnostics.Reconstruct(game, context, checks);
         var statistics = GameStatistics.Derive(game, context, stints, checks);
         CheckReferences(statistics, context, checks);
@@ -20,11 +21,13 @@ public sealed class BasketballValidator : IBasketballValidator
 
     private static void CheckIdentities(BasketballGamePlayByPlay game, List<CheckResult> checks)
     {
-        var events = game.Events.ToDictionary(e => e.EventId);
+        var events = game.Events.GroupBy(e => e.EventId).ToDictionary(g => g.Key, g => g.First());
         var players = game.HomeTeam.Players.Concat(game.AwayTeam.Players).Select(p => p.PlayerId).ToHashSet();
         var coaches = game.HomeTeam.Coaches.Concat(game.AwayTeam.Coaches).Select(p => p.CoachId).ToHashSet();
         var teams = new HashSet<long> { game.HomeTeam.TeamId, game.AwayTeam.TeamId };
-        var allIds = players.Concat(coaches).Concat(teams).Append(game.GameId).Concat(events.Keys).ToArray();
+        var allIds = game.HomeTeam.Players.Concat(game.AwayTeam.Players).Select(p => p.PlayerId)
+            .Concat(game.HomeTeam.Coaches.Concat(game.AwayTeam.Coaches).Select(c => c.CoachId))
+            .Concat([game.HomeTeam.TeamId, game.AwayTeam.TeamId, game.GameId]).Concat(game.Events.Select(e => e.EventId)).ToArray();
         checks.Add(new("IDENTITY.UNIQUE", allIds.All(id => id > 0) && allIds.Distinct().Count() == allIds.Length
             ? CheckStatus.Pass : CheckStatus.Fail, "Internal IDs must be positive, allocated and distinct across entities.", Severity: FindingSeverity.Error));
         foreach (var item in game.Events)
@@ -37,6 +40,14 @@ public sealed class BasketballValidator : IBasketballValidator
                     : property.Name.EndsWith("CoachId", StringComparison.Ordinal) ? coaches.Contains(id)
                     : teams.Contains(id);
                 if (!valid) { checks.Add(new("IDENTITY.REFERENCE", CheckStatus.Fail, $"Unresolved {property.Name}={id}.", item.EventId, Severity: FindingSeverity.Error)); }
+                if (valid && property.Name.EndsWith("EventId", StringComparison.Ordinal))
+                {
+                    var target = events[id];
+                    var typed = property.Name.Contains("FieldGoal", StringComparison.Ordinal) ? target is FieldGoalEvent
+                        : property.Name.Contains("FreeThrow", StringComparison.Ordinal) ? target is FreeThrowEvent
+                        : property.Name.Contains("Foul", StringComparison.Ordinal) ? target is FoulEvent : true;
+                    if (!typed) { checks.Add(new("IDENTITY.LINK_TYPE", CheckStatus.Fail, $"{property.Name} points to {target.GetType().Name}.", item.EventId, Severity: FindingSeverity.Error)); }
+                }
             }
             if (item is FieldGoalEvent { AttemptCredit: FieldGoalAttemptCredit.Player, ShooterPlayerId: null })
             {
@@ -94,7 +105,7 @@ public sealed class BasketballValidator : IBasketballValidator
         var home = 0;
         var away = 0;
         var known = true;
-        var events = game.Events.ToDictionary(e => e.SequenceNumber);
+        var events = game.Events.GroupBy(e => e.SequenceNumber).ToDictionary(g => g.Key, g => g.First());
         var scores = context.Scores.ToLookup(s => s.SequenceNumber);
         var maximum = game.Events.Select(e => e.SequenceNumber).Concat(context.Scores.Select(s => s.SequenceNumber)).DefaultIfEmpty().Max();
         for (var sequence = 1; sequence <= maximum; sequence++)
@@ -114,6 +125,7 @@ public sealed class BasketballValidator : IBasketballValidator
                     $"After-row observation home={observation.Home}, away={observation.Away}; effective stream home={home}, away={away}. Source corrections/unknown scoring are not synthetic adjustments.",
                     events.GetValueOrDefault(sequence)?.EventId, Expected: observation.Home is not null ? observation.Home : observation.Away,
                     Observed: observation.Home is not null ? home : away, Severity: known && !matches ? FindingSeverity.Warning : null, SourceRows: [observation.SourceRow]));
+                if (known && !matches) { known = false; }
             }
         }
         if (context.Scores.Count == 0) { checks.Add(new("SCORE.OBSERVATION", CheckStatus.NotAssessable, "No source score observations.")); }
@@ -137,14 +149,15 @@ public sealed class BasketballValidator : IBasketballValidator
                 var expected = reference.Values.GetValueOrDefault(stat);
                 var actual = line?.Values.GetValueOrDefault(stat);
                 var known = line is not null && !line.Unknown.Contains(stat) && !reference.Unknown.Contains(stat)
-                    && reference.Values.ContainsKey(stat) && stat != "MIN";
+                    && reference.Values.ContainsKey(stat) && (stat != "MIN" || context.MinutesToleranceSeconds is not null);
+                var matches = stat == "MIN" ? Math.Abs(expected - (actual ?? 0)) * 60 <= context.MinutesToleranceSeconds : expected == actual;
                 // Minute precision/rounding has not been verified merely by receiving a value.
-                checks.Add(new("BOX.RECONCILIATION", !known ? CheckStatus.NotAssessable : expected == actual ? CheckStatus.Pass : CheckStatus.Fail,
-                    stat == "MIN" ? "Reference display rounding and clock precision not independently verified; no blanket tolerance selected."
+                checks.Add(new("BOX.RECONCILIATION", !known ? CheckStatus.NotAssessable : matches ? CheckStatus.Pass : CheckStatus.Fail,
+                    stat == "MIN" ? context.MinutesPrecisionEvidence
                     : !known ? "Affected conversion/derived/reference coverage is unknown."
                     : "Comparable normalized counting statistics use exact equality; agreement is corroboration, not independent ground truth.",
                     Period: reference.Period, EntityId: reference.PlayerId ?? reference.TeamId, Stat: stat, Expected: expected, Observed: actual,
-                    Severity: known && expected != actual ? FindingSeverity.Warning : null));
+                    Severity: known && !matches ? FindingSeverity.Warning : null));
             }
         }
         foreach (var whole in context.ReferenceStatistics.Where(x => x.Period == 0))

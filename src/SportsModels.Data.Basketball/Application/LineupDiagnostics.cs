@@ -14,17 +14,19 @@ internal static class LineupDiagnostics
                 var opening = context.OpeningLineups.Where(x => x.Period == period.Key && x.TeamId == team.TeamId).ToArray();
                 HashSet<long>? lineup = opening.Length == 1 && opening[0].Players.Distinct().Count() == 5
                     && opening[0].Players.All(p => team.Players.Any(x => x.PlayerId == p)) ? opening[0].Players.ToHashSet() : null;
-                var confidence = lineup is not null;
+                var confidence = lineup is not null && context.OrdinaryNbaRules;
                 checks.Add(new("LINEUP.PERIOD_START", confidence ? CheckStatus.Pass : CheckStatus.NotAssessable,
                     confidence ? opening[0].Evidence : "No reliable opening five. Previous-period closing lineup is not assumed unchanged across the break.",
                     Period: period.Key, EntityId: team.TeamId));
                 var previousClock = period.Key <= 4 ? 720.0 : 300.0;
                 if (!context.OrdinaryNbaRules) { lineup = null; }
-                foreach (var group in period.GroupBy(e => e.Clock.ClockRemaining.TotalSeconds))
+                var previousSequence = period.Min(e => e.SequenceNumber) - 1;
+                foreach (var group in ClockGroups(period))
                 {
-                    var clock = group.Key;
+                    var clock = group[0].Clock.ClockRemaining.TotalSeconds;
                     if (context.Gaps.Any(g => g.Lineup && g.SequenceNumber <= group.Max(e => e.SequenceNumber)
-                        && g.SequenceNumber > group.Min(e => e.SequenceNumber) - 1)) { lineup = null; }
+                        && g.SequenceNumber > previousSequence)) { lineup = null; }
+                    previousSequence = group.Max(e => e.SequenceNumber);
                     if (clock < previousClock && lineup is not null)
                     {
                         foreach (var player in lineup) { stints.Add(new(period.Key, team.TeamId, player, previousClock, clock)); }
@@ -96,5 +98,17 @@ internal static class LineupDiagnostics
             }
         }
         return stints;
+    }
+
+    private static IEnumerable<BasketballPlayByPlayEvent[]> ClockGroups(IEnumerable<BasketballPlayByPlayEvent> events)
+    {
+        var group = new List<BasketballPlayByPlayEvent>();
+        foreach (var item in events)
+        {
+            if (group.Count > 0 && group[0].Clock.ClockRemaining != item.Clock.ClockRemaining)
+            { yield return group.ToArray(); group.Clear(); }
+            group.Add(item);
+        }
+        if (group.Count > 0) { yield return group.ToArray(); }
     }
 }

@@ -24,6 +24,10 @@ internal static class GameStatistics
         var players = game.HomeTeam.Players.Select(p => (p.PlayerId, game.HomeTeam.TeamId))
             .Concat(game.AwayTeam.Players.Select(p => (p.PlayerId, game.AwayTeam.TeamId))).ToDictionary(p => p.PlayerId, p => p.TeamId);
         var data = new Dictionary<(long Team, long? Player, int Period), Accumulator>();
+        var scoringEvents = game.Events.Select(e => (Event: e, Score: BasketballValidator.Points(e)))
+            .Where(x => x.Score.Points is null || x.Score.Points > 0).ToArray();
+        var substitutionClocks = game.Events.OfType<SubstitutionEvent>().Select(s => (s.TeamId, s.Clock)).ToHashSet();
+        var activePlayers = new Dictionary<(long Team, long Event), HashSet<long>>();
         foreach (var period in periods)
         {
             foreach (var team in new[] { game.HomeTeam, game.AwayTeam })
@@ -91,9 +95,7 @@ internal static class GameStatistics
                     else { Unknown(team, null, period, "OREB", "DREB", "REB"); }
                     break;
                 case FoulEvent foul:
-                    var personal = foul.FoulType is FoulType.Personal or FoulType.Shooting or FoulType.Offensive or FoulType.OffensiveCharge
-                        or FoulType.LooseBall or FoulType.FlagrantOne or FoulType.FlagrantTwo or FoulType.ClearPath or FoulType.AwayFromPlay
-                        or FoulType.TransitionTake or FoulType.PersonalTake or FoulType.DoublePersonal;
+                    var personal = FoulDiagnostics.CountsPersonal(foul.FoulType);
                     if (personal)
                     {
                         foreach (var actor in foul.CommittingParticipants)
@@ -113,8 +115,24 @@ internal static class GameStatistics
             if (knownMinutes.Length == 0 || knownMinutes.Any(c => c.Status != CheckStatus.Pass)) { line.Unknown.UnionWith(["MIN", "+/-"]); }
             line.Values["MIN"] = stints.Where(s => s.TeamId == line.Team && (line.Player is null || s.PlayerId == line.Player)
                 && (line.Period == 0 || s.Period == line.Period)).Sum(s => (s.StartRemaining - s.EndRemaining) / 60);
-            // Scoring attribution at a substitution clock is not inferred from positive-duration stints.
-            line.Unknown.Add("+/-");
+            foreach (var (scoring, score) in scoringEvents.Where(x => line.Period == 0 || BasketballValidator.Period(x.Event.Clock) == line.Period))
+            {
+                var (scoringTeam, points) = score;
+                if (points is null) { line.Unknown.Add("+/-"); continue; }
+                if (points == 0 || scoringTeam is null) { continue; }
+                if (line.Player is null) { line.Values["+/-"] += scoringTeam == line.Team ? points.Value : -points.Value; continue; }
+                var clock = scoring.Clock.ClockRemaining.TotalSeconds;
+                var scoringPeriod = BasketballValidator.Period(scoring.Clock);
+                var sameClockSub = substitutionClocks.Contains((line.Team, scoring.Clock));
+                if (!activePlayers.TryGetValue((line.Team, scoring.EventId), out var active))
+                {
+                    active = stints.Where(s => s.TeamId == line.Team && s.Period == scoringPeriod && s.StartRemaining >= clock && s.EndRemaining <= clock)
+                        .Select(s => s.PlayerId).ToHashSet();
+                    activePlayers[(line.Team, scoring.EventId)] = active;
+                }
+                if (sameClockSub || active.Count != 5) { line.Unknown.Add("+/-"); continue; }
+                if (active.Contains(line.Player.Value)) { line.Values["+/-"] += scoringTeam == line.Team ? points.Value : -points.Value; }
+            }
             foreach (var gap in context.Gaps)
             {
                 var gapPeriod = game.Events.LastOrDefault(e => e.SequenceNumber <= gap.SequenceNumber)?.Clock;
@@ -122,6 +140,13 @@ internal static class GameStatistics
             }
             if (context.HasUnresolvedCredits) { line.Unknown.UnionWith(["STL", "BLK", "AST"]); }
             if (!context.OrdinaryNbaRules) { line.Unknown.Add("PF"); }
+            if (line.Player is null && !line.Unknown.Contains("MIN") && line.Period > 0)
+            {
+                var expectedMinutes = line.Period <= 4 ? 60 : 25;
+                checks.Add(new("MINUTES.TEAM_SUM", Math.Abs(line.Values["MIN"] - expectedMinutes) < 0.000001 ? CheckStatus.Pass : CheckStatus.Fail,
+                    "Five player-minutes per playing minute; breaks excluded and overtime treated separately.", Period: line.Period,
+                    EntityId: line.Team, Stat: "MIN", Expected: expectedMinutes, Observed: line.Values["MIN"], Severity: FindingSeverity.Error));
+            }
             var v = line.Values;
             var assessable = !line.Unknown.Overlaps(["PTS", "FGM", "3PM", "FTM"]);
             var arithmetic = v["PTS"] == 2 * (v["FGM"] - v["3PM"]) + 3 * v["3PM"] + v["FTM"];

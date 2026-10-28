@@ -8,6 +8,7 @@ public interface IIdentityRegistry
     string RegistryId { get; }
     long Revision { get; }
     T InTransaction<T>(Func<T> operation);
+    void Backup(string destination);
 
     IdentityResolution Resolve(string entityType, string source, string sourceId, string evidence,
         bool establishedNew = false, long? confirmedEntityId = null);

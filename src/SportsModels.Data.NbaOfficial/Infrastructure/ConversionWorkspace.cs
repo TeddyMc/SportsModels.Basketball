@@ -13,7 +13,24 @@ internal sealed class ConversionWorkspace : IConversionWorkspace
 
     public IEnumerable<string> EnumerateInputs(string directory) => Directory.EnumerateFiles(directory, "*.json").Order(StringComparer.Ordinal);
     public Task<byte[]> ReadAsync(string path, CancellationToken cancellationToken) => File.ReadAllBytesAsync(path, cancellationToken);
-    public ReferenceBundle ReadReferences(string directory, string gameId) => ReferenceBundle.Read(directory, gameId);
+    public bool Exists(string path) => File.Exists(path);
+    public ReferenceBundle ReadReferences(string directory, string gameId)
+    {
+        var folder = Path.Combine(directory, gameId);
+        var inputs = new List<(string Path, byte[] Bytes)>();
+        var errors = new List<string>();
+        if (Directory.Exists(folder))
+        {
+            foreach (var path in Directory.EnumerateFiles(folder, "*.json").Where(p => !p.EndsWith(".retrieval.json", StringComparison.Ordinal)))
+            {
+                try { inputs.Add((path, File.ReadAllBytes(path))); }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { errors.Add($"{path}: {exception.Message}"); }
+            }
+        }
+        var bundle = ReferenceBundle.Parse(inputs, gameId);
+        bundle.Checks.AddRange(errors.Select(e => new CheckResult("REFERENCE.READ", CheckStatus.NotAssessable, e)));
+        return bundle;
+    }
 
     public string CreateRun(string output, string runId)
     {

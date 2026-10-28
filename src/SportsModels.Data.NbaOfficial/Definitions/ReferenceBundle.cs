@@ -8,23 +8,24 @@ internal sealed class ReferenceBundle
     public List<(string Path, byte[] Bytes)> Files { get; } = [];
     public List<CheckResult> Checks { get; } = [];
     public List<(int Period, string Mode, JsonElement Box)> Boxes { get; } = [];
+    public List<(string TeamId, string CoachId, string Name)> Coaches { get; } = [];
+    public List<(string TeamId, string PlayerId, string Name)> RosterPlayers { get; } = [];
 
-    public static ReferenceBundle Read(string directory, string gameId)
+    public static ReferenceBundle Parse(IReadOnlyList<(string Path, byte[] Bytes)> inputs, string gameId)
     {
         var result = new ReferenceBundle();
-        var folder = Path.Combine(directory, gameId);
-        if (!Directory.Exists(folder))
+        if (inputs.Count == 0)
         {
             result.Checks.Add(new("REFERENCE.AVAILABILITY", CheckStatus.NotAssessable, "No downloaded reference bundle for this game."));
             return result;
         }
-        foreach (var group in Directory.EnumerateFiles(folder, "*.json")
-            .Where(x => !x.EndsWith(".retrieval.json", StringComparison.Ordinal))
-            .GroupBy(x => Path.GetFileNameWithoutExtension(x)[..Path.GetFileNameWithoutExtension(x).LastIndexOf('-')]))
+        result.Files.AddRange(inputs);
+        foreach (var group in inputs
+            .Where(x => !x.Path.EndsWith(".retrieval.json", StringComparison.Ordinal) && Path.GetFileNameWithoutExtension(x.Path).Contains('-'))
+            .GroupBy(x => Path.GetFileNameWithoutExtension(x.Path)[..Path.GetFileNameWithoutExtension(x.Path).LastIndexOf('-')]))
         {
             // Never select a revision by filesystem timestamp. Multiple revisions need an explicit input selection.
-            var paths = group.Order(StringComparer.Ordinal).ToArray();
-            foreach (var path in paths) { result.Files.Add((path, File.ReadAllBytes(path))); }
+            var paths = group.OrderBy(x => x.Path, StringComparer.Ordinal).ToArray();
             if (paths.Length != 1)
             {
                 result.Checks.Add(new("REFERENCE.REVISION", CheckStatus.NotAssessable, $"Multiple revisions for {group.Key}; select one in an isolated bundle."));
@@ -32,16 +33,20 @@ internal sealed class ReferenceBundle
             }
             try
             {
-                using var doc = JsonDocument.Parse(result.Files.Last().Bytes);
+                using var doc = JsonDocument.Parse(paths[0].Bytes);
+                if (doc.RootElement.TryGetProperty("resultSets", out var tables))
+                {
+                    result.ReadTables(tables, gameId);
+                }
                 if (!doc.RootElement.TryGetProperty("boxScoreTraditional", out var box)) { continue; }
                 if (box.Text("gameId") != gameId) { throw new InvalidDataException("Reference game ID mismatch."); }
-                var parts = Path.GetFileNameWithoutExtension(paths[0]).Split('-');
+                var parts = Path.GetFileNameWithoutExtension(paths[0].Path).Split('-');
                 var part = parts[^2];
                 var period = int.Parse(part[1..], System.Globalization.CultureInfo.InvariantCulture);
                 var mode = parts.Length == 3 ? "period" : parts[1];
                 result.Boxes.Add((period, mode, box.Clone()));
             }
-            catch (Exception exception) when (exception is JsonException or InvalidDataException or FormatException)
+            catch (Exception exception) when (exception is JsonException or InvalidDataException or FormatException or KeyNotFoundException or InvalidOperationException or IndexOutOfRangeException)
             {
                 result.Checks.Add(new("REFERENCE.SCHEMA", CheckStatus.NotAssessable, exception.Message));
             }
@@ -51,6 +56,36 @@ internal sealed class ReferenceBundle
             result.Checks.Add(new("REFERENCE.AVAILABILITY", CheckStatus.NotAssessable, "No usable traditional-v3 box score; retained responses may be unavailable or unsupported schemas."));
         }
         return result;
+    }
+
+    private void ReadTables(JsonElement tables, string gameId)
+    {
+        foreach (var table in tables.EnumerateArray())
+        {
+            var headers = table.GetProperty("headers").EnumerateArray().Select(x => x.GetString()!).ToArray();
+            foreach (var row in table.GetProperty("rowSet").EnumerateArray())
+            {
+                string Value(string field)
+                {
+                    var index = Array.IndexOf(headers, field);
+                    return index < 0 ? "" : row[index].ToString();
+                }
+                if (table.Text("name") == "Coaches")
+                {
+                    Coaches.Add((Value("TEAM_ID"), Value("COACH_ID"), Value("COACH_NAME")));
+                }
+                if (table.Text("name") == "CommonTeamRoster")
+                {
+                    RosterPlayers.Add((Value("TeamID"), Value("PLAYER_ID"), Value("PLAYER")));
+                }
+                if (table.Text("name") == "GameSummary")
+                {
+                    if (Value("GAME_ID") != gameId) { throw new InvalidDataException("Summary game ID mismatch."); }
+                    Checks.Add(new("REFERENCE.GAME_STATUS", Value("GAME_STATUS_ID") == "3" ? CheckStatus.Pass : CheckStatus.NotAssessable,
+                        $"Summary status={Value("GAME_STATUS_ID")}; date={Value("GAME_DATE_EST")}; season={Value("SEASON")}. Scheduled status on a retrospective response does not prove game completion."));
+                }
+            }
+        }
     }
 
     public IEnumerable<JsonElement> Teams() => Boxes.Where(x => x.Period == 0)
@@ -80,15 +115,9 @@ internal sealed class ReferenceBundle
                     if (period > 0)
                     {
                         var minutes = SourceJson.Minutes(teamStats.Text("minutes"));
-                        var expected = period <= 4 ? 60 : 25;
-                        if (!ordinaryRules || minutes is null || Math.Abs(minutes.Value - expected) > 1.0 / 60)
-                        {
-                            Checks.Add(new("REFERENCE.PERIOD_FILTER", CheckStatus.NotAssessable,
-                                $"p{period}: team minutes {minutes} do not verify a complete {expected}-minute player interval. Period parameter alone is not evidence.", Period: period));
-                            continue;
-                        }
-                        Checks.Add(new("REFERENCE.PERIOD_FILTER", CheckStatus.Pass,
-                            "Response interval supported by team player-minutes; period sums checked separately.", Period: period));
+                        Checks.Add(new("REFERENCE.PERIOD_FILTER", CheckStatus.NotAssessable,
+                            $"{mode} p{period}: returned team minutes {minutes}. Period-only probes returned whole games; range probes change the selection but boundary inclusion/precision is not established. No period reconciliation is claimed.", Period: period));
+                        continue;
                     }
                     if (statistics.Any(x => x.TeamId == id && x.PlayerId is null && x.Period == period)) { continue; }
                     statistics.Add(Line(id.Value, null, period, teamStats));
