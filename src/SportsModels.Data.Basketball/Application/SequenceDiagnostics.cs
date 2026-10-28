@@ -119,7 +119,6 @@ internal static class SequenceDiagnostics
                     break;
             }
         }
-        checks.Add(new("FOUL.TEAM_PENALTY", CheckStatus.NotAssessable, "Team-foul/penalty marker semantics and exceptional counting have not been independently verified."));
         checks.Add(new("FOUL.DISQUALIFICATION", CheckStatus.NotAssessable, "Foul-out participation requires verified player-count exception and complete lineup evidence; technicals are not blanket personal fouls."));
     }
 

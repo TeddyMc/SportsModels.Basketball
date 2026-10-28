@@ -56,5 +56,48 @@ internal static class FoulDiagnostics
             }
         }
         if (context.FoulCounts.Count == 0) { checks.Add(new("FOUL.PERSONAL_OBSERVATION", CheckStatus.NotAssessable, "No comparable personal-foul count observations.")); }
+        CheckTeamFouls(game, context, checks);
+    }
+
+    private static void CheckTeamFouls(BasketballGamePlayByPlay game, GameValidationContext context, List<CheckResult> checks)
+    {
+        foreach (var period in game.Events.GroupBy(e => BasketballValidator.Period(e.Clock)))
+        {
+            var counts = new Dictionary<long, int>();
+            var lateCounts = new Dictionary<long, int>();
+            var known = context.OrdinaryNbaRules && period.OfType<PeriodBoundaryEvent>().Any(b => b.Marker == PeriodMarker.Start);
+            var previousSequence = period.Min(e => e.SequenceNumber) - 1;
+            foreach (var item in period)
+            {
+                if (context.Gaps.Any(g => g.SequenceNumber > previousSequence && g.SequenceNumber <= item.SequenceNumber && g.Statistics.Contains("PF"))) { known = false; }
+                previousSequence = item.SequenceNumber;
+                if (item is FoulEvent foul)
+                {
+                    if (foul.FoulType is FoulType.Other or FoulType.NotSet) { known = false; }
+                    var teamCharge = CountsPersonal(foul.FoulType) && foul.FoulType is not (FoulType.Offensive or FoulType.OffensiveCharge or FoulType.DoublePersonal);
+                    if (teamCharge)
+                    {
+                        foreach (var actor in foul.CommittingParticipants)
+                        {
+                            if (actor.TeamId is not long team) { known = false; continue; }
+                            counts[team] = counts.GetValueOrDefault(team) + 1;
+                            if (item.Clock.ClockRemaining.TotalSeconds <= 120) { lateCounts[team] = lateCounts.GetValueOrDefault(team) + 1; }
+                        }
+                    }
+                }
+                foreach (var observation in context.TeamFouls.Where(o => o.SequenceNumber == item.SequenceNumber))
+                {
+                    var count = counts.GetValueOrDefault(observation.TeamId);
+                    var threshold = period.Key <= 4 ? 4 : 3;
+                    var penalty = count > threshold || lateCounts.GetValueOrDefault(observation.TeamId) > 1;
+                    var matches = observation.TeamFouls is int observed ? observed == count : observation.Penalty && penalty;
+                    checks.Add(new("FOUL.TEAM_OBSERVATION", !known ? CheckStatus.NotAssessable : matches ? CheckStatus.Pass : CheckStatus.Fail,
+                        "After-row team foul/PN observation. Rule 12-B V–VII: period resets, four regulation/three OT allowances, one late foul allowance; ordinary offensive and double-personal fouls excluded. Rare player-count exceptions remain warnings.",
+                        item.EventId, period.Key, observation.TeamId, "TEAM_PF", observation.TeamFouls, count,
+                        known && !matches ? FindingSeverity.Warning : null, [observation.SourceRow]));
+                }
+            }
+        }
+        if (context.TeamFouls.Count == 0) { checks.Add(new("FOUL.TEAM_OBSERVATION", CheckStatus.NotAssessable, "No comparable team-foul/penalty observations.")); }
     }
 }

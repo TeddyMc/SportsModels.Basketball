@@ -20,6 +20,7 @@ public sealed record LineupEvidence(int Period, long TeamId, IReadOnlyList<long>
 public sealed record PlayerStint(int Period, long TeamId, long PlayerId, double StartRemaining, double EndRemaining);
 public sealed record ScoreObservation(int SequenceNumber, int? Home, int? Away, int SourceRow);
 public sealed record FoulCountObservation(int SequenceNumber, long PlayerId, int PersonalFouls, int SourceRow);
+public sealed record TeamFoulObservation(int SequenceNumber, long TeamId, int? TeamFouls, bool Penalty, int SourceRow);
 public sealed record CoverageGap(int SequenceNumber, IReadOnlyList<string> Statistics, bool Lineup, bool Possession, string Reason);
 
 /// <summary>Reference observations are supplied separately; provider interpretation belongs upstream.</summary>
@@ -33,6 +34,7 @@ public sealed record GameValidationContext(bool OrdinaryNbaRules, bool Final,
 {
     public IReadOnlyList<CoverageGap> Gaps { get; init; } = [];
     public IReadOnlyList<FoulCountObservation> FoulCounts { get; init; } = [];
+    public IReadOnlyList<TeamFoulObservation> TeamFouls { get; init; } = [];
     public double? MinutesToleranceSeconds { get; init; }
     public string MinutesPrecisionEvidence { get; init; } = "Unverified reference rounding and source clock precision.";
 }

@@ -38,4 +38,8 @@ The inspected 2025–26 traditional-v3 team turnover field equals its complete p
 
 Same-clock jump-ball/lost-ball/steal credits are grouped when compatible actors and winner establish one control change. Same-clock credits after an ejection do not prove later participation. Reports include local score intervals that can be assessed after a prior unresolved score while cumulative totals remain unknown. `LINEUP.BREAK_SUBSTITUTIONS` records observed end/start-clock substitution counts and opening-range player counts without claiming complete break coverage or inferring an opening five.
 
+Team-foul/PN observations are checked with per-period counters and bounded penalty logic under [2025–26 NBA Rule 12-B V–VII](https://cdn.nba.com/manage/2026/01/Official-2025-26-NBA-Playing-Rules.pdf). Ordinary offensive and double-personal charges do not increment team counters. Late-period and overtime allowances are checked separately; rare player-count exceptions remain investigation warnings. Personal foul observations use separate player counters.
+
+The NBA documents a [2025–26 heave exception](https://www.nba.com/news/nba-heaves-rule-change-early-results), but source labels alone do not establish eligibility. Blank-result team attempts therefore remain unresolved.
+
 Ordinary NUnit tests use saved small source/reference fixtures and synthetic seeded defects without NBA network access. Source selections retain original filenames, snapshot hashes and row indices; they are parser fixtures, not complete-game correctness proofs.

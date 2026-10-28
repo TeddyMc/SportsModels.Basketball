@@ -135,7 +135,8 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
                     .Select(c => new CoverageGap(c.SourceRows![0] + 1, ["PF"], false, false, "Unresolved charged actor")))
                 .Concat(checks.Where(c => c.Code == "IDENTITY.NAME" && c.EventId is not null)
                     .Select(c => new CoverageGap(events.Single(e => e.EventId == c.EventId).SequenceNumber, ["AST"], false, false, "Unresolved described assist credit"))).ToArray(),
-            FoulCounts = FoulCounts(events)
+            FoulCounts = FoulCounts(events),
+            TeamFouls = TeamFouls(events)
         };
         checks.Add(new("TIME.UTC", CheckStatus.NotAssessable,
             "Description wall clocks are minute precision; game date/timezone/midnight evidence is not verified. OccurredAtUtc remains null."));
@@ -554,6 +555,22 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
             }
         }
         return result.ToArray();
+    }
+
+    private TeamFoulObservation[] TeamFouls(List<BasketballPlayByPlayEvent> events)
+    {
+        var observations = new List<TeamFoulObservation>();
+        foreach (var foul in events.OfType<FoulEvent>())
+        {
+            var row = rows[foul.SequenceNumber - 1];
+            var team = TeamId(row);
+            var match = Regex.Match(row.Text("description"), @"\(P\d+\.(?:T(\d+)|(PN))\)");
+            if (team is null || !match.Success) { continue; }
+            observations.Add(new(foul.SequenceNumber, team.Value,
+                match.Groups[1].Success ? int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) : null,
+                match.Groups[2].Success, foul.SequenceNumber - 1));
+        }
+        return observations.ToArray();
     }
 
     private void Link(long id, string field, int row, int supporting) => evidence.Add(new(id, field,

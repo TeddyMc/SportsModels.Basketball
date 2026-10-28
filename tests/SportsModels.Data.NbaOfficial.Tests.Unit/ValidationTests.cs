@@ -197,6 +197,36 @@ public sealed class ValidationTests
         Assert.That(report.Checks.Where(c => c.Code == "MINUTES.COVERAGE").All(c => c.Status == CheckStatus.NotAssessable), Is.True);
     }
 
+    [Test]
+    public void TeamFoulsExcludeOrdinaryOffensiveAndDoublePersonalCharges()
+    {
+        var offensive = new FoulEvent(1002, 2, Clock(600), null, [new(10, 101, null)], null, FoulType.Offensive, null);
+        var both = new FoulEvent(1003, 3, Clock(500), null, [new(10, 101, null), new(20, 201, null)], null, FoulType.DoublePersonal, null);
+        var report = Validate([Boundary(1, 720, PeriodMarker.Start), offensive, both], Context() with
+        { TeamFouls = [new(2, 10, 0, false, 1), new(3, 10, 0, false, 2)] });
+        Assert.That(report.Checks.Where(c => c.Code == "FOUL.TEAM_OBSERVATION").All(c => c.Status == CheckStatus.Pass), Is.True);
+    }
+
+    [Test]
+    public void TeamPenaltyHonorsLastTwoMinutesAndResetsNextPeriod()
+    {
+        var first = new FoulEvent(1002, 2, Clock(110), null, [new(10, 101, null)], null, FoulType.Personal, null);
+        var second = first with { EventId = 1003, SequenceNumber = 3, Clock = Clock(60) };
+        var next = first with { EventId = 1006, SequenceNumber = 6, Clock = Clock(600, 2) };
+        var report = Validate([Boundary(1, 720, PeriodMarker.Start), first, second, Boundary(4, 0, PeriodMarker.End),
+            Boundary(5, 720, PeriodMarker.Start, 2), next], Context() with
+        { TeamFouls = [new(2, 10, 1, false, 1), new(3, 10, null, true, 2), new(6, 10, 1, false, 5)] });
+        Assert.That(report.Checks.Where(c => c.Code == "FOUL.TEAM_OBSERVATION").All(c => c.Status == CheckStatus.Pass), Is.True);
+    }
+
+    [Test]
+    public void IncorrectTeamFoulObservationIsDetected()
+    {
+        var foul = new FoulEvent(1002, 2, Clock(600), null, [new(10, 101, null)], null, FoulType.Personal, null);
+        var report = Validate([Boundary(1, 720, PeriodMarker.Start), foul], Context() with { TeamFouls = [new(2, 10, 2, false, 1)] });
+        Assert.That(report.Checks.Single(c => c.Code == "FOUL.TEAM_OBSERVATION").Status, Is.EqualTo(CheckStatus.Fail));
+    }
+
     private static BasketballGameTeam Team(long id, int firstPlayer) => new(id, id.ToString(), [],
         Enumerable.Range(firstPlayer, 7).Select(p => new BasketballGamePlayer(p, p.ToString(), [])).ToArray());
 
