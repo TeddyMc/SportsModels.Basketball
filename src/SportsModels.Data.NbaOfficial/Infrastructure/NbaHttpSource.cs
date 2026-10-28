@@ -35,7 +35,12 @@ internal sealed class NbaHttpSource(HttpClient client) : INbaSource
                     throw new InvalidDataException("Final game has missing identity or team metadata.");
                 }
 
-                var game = new NbaGame(gameId, date, away, home);
+                var game = new NbaGame(gameId, date, away, home)
+                {
+                    PeriodCount = row.TryGetProperty("period", out var period) && period.TryGetInt32(out var count) && count is > 0 and <= 20 ? count : null,
+                    HomeTeamSourceId = row.GetProperty("homeTeam").TryGetProperty("teamId", out var homeId) ? homeId.ToString() : null,
+                    AwayTeamSourceId = row.GetProperty("awayTeam").TryGetProperty("teamId", out var awayId) ? awayId.ToString() : null
+                };
                 _ = game.FileName;
 
                 if (games.TryGetValue(gameId, out var previous) && previous != game)

@@ -19,7 +19,12 @@ public sealed record GameConversionReport(string RunId, string GameSourceId, str
     ValidationReport? Validation, string? Failure);
 
 public sealed record ReferenceAcquisitionRequest(string InputDirectory, string OutputDirectory,
-    int? Limit = null, IReadOnlyList<string>? GameIds = null);
+    int? Limit = null, IReadOnlyList<string>? GameIds = null)
+{
+    public DateOnly? StartDate { get; init; }
+    public DateOnly? EndDate { get; init; }
+    public IReadOnlyList<string>? Endpoints { get; init; }
+}
 
 public interface INbaReferenceAcquisition
 {

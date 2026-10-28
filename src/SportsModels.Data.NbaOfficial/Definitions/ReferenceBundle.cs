@@ -26,7 +26,7 @@ internal sealed class ReferenceBundle
             .GroupBy(x => Path.GetFileNameWithoutExtension(x.Path)[..Path.GetFileNameWithoutExtension(x.Path).LastIndexOf('-')]))
         {
             // Never select a revision by filesystem timestamp. Multiple revisions need an explicit input selection.
-            var paths = group.OrderBy(x => x.Path, StringComparer.Ordinal).ToArray();
+            var paths = group.OrderBy(x => x.Path, StringComparer.Ordinal).DistinctBy(x => SourceJson.Hash(x.Bytes)).ToArray();
             if (paths.Length != 1)
             {
                 result.Checks.Add(new("REFERENCE.REVISION", CheckStatus.NotAssessable, $"Multiple revisions for {group.Key}; select one in an isolated bundle."));
@@ -41,6 +41,13 @@ internal sealed class ReferenceBundle
                 }
                 if (!doc.RootElement.TryGetProperty("boxScoreTraditional", out var box)) { continue; }
                 if (box.Text("gameId") != gameId) { throw new InvalidDataException("Reference game ID mismatch."); }
+                foreach (var side in new[] { "homeTeam", "awayTeam" })
+                {
+                    var team = box.GetProperty(side);
+                    if (team.Key("teamId") == "" || team.GetProperty("players").ValueKind != JsonValueKind.Array
+                        || team.GetProperty("statistics").ValueKind != JsonValueKind.Object)
+                    { throw new InvalidDataException("Reference team/roster/statistics schema is unavailable."); }
+                }
                 var parts = Path.GetFileNameWithoutExtension(paths[0].Path).Split('-');
                 var part = parts[^2];
                 var period = int.Parse(part[1..], System.Globalization.CultureInfo.InvariantCulture);
@@ -122,7 +129,17 @@ internal sealed class ReferenceBundle
                         continue;
                     }
                     if (statistics.Any(x => x.TeamId == id && x.PlayerId is null && x.Period == period)) { continue; }
-                    statistics.Add(Line(id.Value, null, period, teamStats));
+                    var teamLine = Line(id.Value, null, period, teamStats);
+                    var persons = team.GetProperty("players").EnumerateArray().ToArray();
+                    var parsedTurnovers = persons.Select(p => int.TryParse(p.GetProperty("statistics").Text("turnovers"), out var n) ? (int?)n : null).ToArray();
+                    if (box.Text("gameId").Substring(3, 2) == "25" && parsedTurnovers.All(n => n is not null)
+                        && teamLine.Values.TryGetValue("TOV", out var turnovers) && parsedTurnovers.Sum(n => n!.Value) == turnovers)
+                    {
+                        teamLine = teamLine with { ComparisonKeys = new Dictionary<string, string> { ["TOV"] = "PLAYER_TOV" } };
+                        Checks.Add(new("REFERENCE.TURNOVER_DEFINITION", CheckStatus.Pass,
+                            "2025-26 traditional-v3 team turnovers equal its complete player sum. Compare with player-credited replay turnovers; retain team-only turnovers separately.", EntityId: id));
+                    }
+                    statistics.Add(teamLine);
                     var starters = new List<long>();
                     foreach (var person in team.GetProperty("players").EnumerateArray())
                     {

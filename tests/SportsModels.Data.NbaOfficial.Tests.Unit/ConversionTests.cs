@@ -166,6 +166,7 @@ public sealed class ConversionTests
         Assert.That(heave.Outcome, Is.EqualTo(ShotOutcome.NotSet));
         Assert.That(heave.ShooterPlayerId, Is.Null);
         Assert.That(heave.FieldGoalType, Is.EqualTo(FieldGoalType.NotSet));
+        Assert.That(game.Events.OfType<FieldGoalEvent>().Any(e => e.ShotDistanceFeet > 30), Is.True);
     }
 
     [Test]

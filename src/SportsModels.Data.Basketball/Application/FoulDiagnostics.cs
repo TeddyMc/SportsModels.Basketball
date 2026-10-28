@@ -12,7 +12,7 @@ internal static class FoulDiagnostics
     {
         var counts = new Dictionary<long, int>();
         var known = context.OrdinaryNbaRules;
-        var ejected = new HashSet<long>();
+        var ejected = new Dictionary<long, BasketballClock>();
         foreach (var item in game.Events)
         {
             if (context.Gaps.Any(g => g.SequenceNumber <= item.SequenceNumber && g.Statistics.Contains("PF"))) { known = false; }
@@ -36,7 +36,7 @@ internal static class FoulDiagnostics
                     BasketballValidator.Period(item.Clock), observation.PlayerId, "PF", observation.PersonalFouls, actual,
                     known && actual != observation.PersonalFouls ? FindingSeverity.Warning : null, [observation.SourceRow]));
             }
-            if (item is EjectionEvent { PlayerId: long playerEjected }) { ejected.Add(playerEjected); }
+            if (item is EjectionEvent { PlayerId: long playerEjected }) { ejected[playerEjected] = item.Clock; }
             if (item is ReviewEvent) { ejected.Clear(); }
             long? actorId = item switch
             {
@@ -46,10 +46,13 @@ internal static class FoulDiagnostics
                 SubstitutionEvent sub => sub.PlayerInId,
                 _ => null
             };
-            if (actorId is long actorPlayer && ejected.Contains(actorPlayer))
+            if (actorId is long actorPlayer && ejected.TryGetValue(actorPlayer, out var ejectionClock))
             {
-                checks.Add(new("FOUL.EJECTION_PARTICIPATION", CheckStatus.Fail, "Player participates after an observed ejection with no intervening review; investigate source revision/ruling.",
-                    item.EventId, BasketballValidator.Period(item.Clock), actorPlayer, Severity: FindingSeverity.Warning));
+                var sameActionClock = item.Clock == ejectionClock;
+                checks.Add(new("FOUL.EJECTION_PARTICIPATION", sameActionClock ? CheckStatus.NotAssessable : CheckStatus.Fail,
+                    sameActionClock ? "Same-clock statistical credit can describe the action that caused ejection; source row order alone does not prove later participation."
+                        : "Player participates at a later clock after an observed ejection with no intervening review; investigate source revision/ruling.",
+                    item.EventId, BasketballValidator.Period(item.Clock), actorPlayer, Severity: sameActionClock ? null : FindingSeverity.Warning));
             }
         }
         if (context.FoulCounts.Count == 0) { checks.Add(new("FOUL.PERSONAL_OBSERVATION", CheckStatus.NotAssessable, "No comparable personal-foul count observations.")); }

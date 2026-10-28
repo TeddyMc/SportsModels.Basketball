@@ -11,7 +11,10 @@ public sealed record CheckResult(string Code, CheckStatus Status, string Evidenc
     IReadOnlyList<int>? SourceRows = null);
 
 public sealed record StatisticLine(long TeamId, long? PlayerId, int Period,
-    IReadOnlyDictionary<string, double> Values, IReadOnlyList<string> Unknown);
+    IReadOnlyDictionary<string, double> Values, IReadOnlyList<string> Unknown)
+{
+    public IReadOnlyDictionary<string, string> ComparisonKeys { get; init; } = new Dictionary<string, string>();
+}
 
 public sealed record LineupEvidence(int Period, long TeamId, IReadOnlyList<long> Players, string Evidence);
 public sealed record PlayerStint(int Period, long TeamId, long PlayerId, double StartRemaining, double EndRemaining);

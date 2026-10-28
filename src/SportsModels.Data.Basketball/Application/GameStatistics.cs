@@ -11,7 +11,7 @@ internal static class GameStatistics
         public long Team { get; } = team;
         public long? Player { get; } = player;
         public int Period { get; } = period;
-        public Dictionary<string, double> Values { get; } = CountingStats.Append("MIN").Append("+/-").ToDictionary(s => s, _ => 0.0);
+        public Dictionary<string, double> Values { get; } = CountingStats.Concat(["MIN", "+/-", "PLAYER_TOV", "TEAM_ONLY_TOV"]).ToDictionary(s => s, _ => 0.0);
         public HashSet<string> Unknown { get; } = [];
         public void Add(string stat, double value = 1) => Values[stat] += value;
         public StatisticLine ToContracts() => new(Team, Player, Period, Values, Unknown.Order().ToArray());
@@ -82,6 +82,7 @@ internal static class GameStatistics
                     break;
                 case TurnoverEvent turnover:
                     Count(turnover.TeamId, turnover.ResponsiblePlayerId, period, "TOV");
+                    Count(turnover.TeamId, turnover.ResponsiblePlayerId, period, turnover.ResponsiblePlayerId is null ? "TEAM_ONLY_TOV" : "PLAYER_TOV");
                     if (turnover.StealingPlayerId is long stealing && players.TryGetValue(stealing, out var stealingTeam)) { Count(stealingTeam, stealing, period, "STL"); }
                     break;
                 case ReboundEvent rebound when rebound.TeamId is long team:
@@ -138,8 +139,9 @@ internal static class GameStatistics
                 var gapPeriod = game.Events.LastOrDefault(e => e.SequenceNumber <= gap.SequenceNumber)?.Clock;
                 if (line.Period == 0 || gapPeriod is null || line.Period == BasketballValidator.Period(gapPeriod)) { line.Unknown.UnionWith(gap.Statistics); }
             }
-            if (context.HasUnresolvedCredits) { line.Unknown.UnionWith(["STL", "BLK", "AST"]); }
+            if (context.HasUnresolvedCredits && context.Gaps.Count == 0) { line.Unknown.UnionWith(["STL", "BLK", "AST"]); }
             if (!context.OrdinaryNbaRules) { line.Unknown.Add("PF"); }
+            if (line.Unknown.Contains("TOV")) { line.Unknown.UnionWith(["PLAYER_TOV", "TEAM_ONLY_TOV"]); }
             if (line.Player is null && !line.Unknown.Contains("MIN") && line.Period > 0)
             {
                 var expectedMinutes = line.Period <= 4 ? 60 : 25;

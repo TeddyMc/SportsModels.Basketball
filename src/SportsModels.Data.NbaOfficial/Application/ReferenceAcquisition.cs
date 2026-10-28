@@ -4,31 +4,48 @@ using SportsModels.Data.NbaOfficial.Interfaces;
 
 namespace SportsModels.Data.NbaOfficial.Application;
 
-internal sealed class ReferenceAcquisition(INbaReferenceSource source, IReferenceStore store) : INbaReferenceAcquisition
+internal sealed class ReferenceAcquisition(INbaReferenceSource source, IReferenceStore store, INbaSource discovery, ILocalGameInventory inventory) : INbaReferenceAcquisition
 {
     public async Task<IngestionResult> RunAsync(ReferenceAcquisitionRequest request, CancellationToken cancellationToken = default)
     {
+        if (request.Limit is <= 0) { throw new ArgumentException("Limit must be positive."); }
+        if (request.Endpoints is not null && request.Endpoints.Any(e => e is not ("boxscoretraditionalv3" or "boxscoretraditionalv3-range" or "boxscoretraditionalv3-opening" or "boxscoresummaryv2" or "commonteamroster")))
+        { throw new ArgumentException("Unknown reference endpoint selection."); }
         var failures = new List<IngestionFailure>();
         var games = new Dictionary<string, int>();
         var gameTeams = new Dictionary<string, string[]>();
-        foreach (var path in Directory.EnumerateFiles(request.InputDirectory, "*.json").Order(StringComparer.Ordinal))
+        var dateSelection = new HashSet<string>();
+        if (request.StartDate is not null || request.EndDate is not null)
+        {
+            if (request.StartDate is null || request.EndDate is null || request.StartDate > request.EndDate
+                || request.EndDate >= DateOnly.FromDateTime(DateTime.UtcNow)) { throw new ArgumentException("Provide an inclusive date range ending before today UTC."); }
+            for (var date = request.StartDate.Value; date <= request.EndDate.Value; date = date.AddDays(1))
+            {
+                try
+                {
+                    foreach (var game in await discovery.DiscoverAsync(date, cancellationToken))
+                    {
+                        if (request.GameIds is not null && !request.GameIds.Contains(game.GameId)) { continue; }
+                        dateSelection.Add(game.GameId);
+                        games[game.GameId] = game.PeriodCount ?? 0;
+                        gameTeams[game.GameId] = new[] { game.HomeTeamSourceId, game.AwayTeamSourceId }.OfType<string>().ToArray();
+                    }
+                }
+                catch (Exception exception) when (exception is HttpRequestException or IOException or JsonException
+                    || exception is OperationCanceledException && !cancellationToken.IsCancellationRequested)
+                { failures.Add(new(date.ToString("yyyy-MM-dd"), FailureKind.Discovery, exception.Message)); }
+            }
+        }
+        var local = await inventory.ReadAsync(request.InputDirectory, cancellationToken);
+        failures.AddRange(local.Failures);
+        if (!local.DirectoryExists && request.StartDate is null) { throw new DirectoryNotFoundException(request.InputDirectory); }
+        foreach (var game in local.Games)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                using var document = JsonDocument.Parse(await File.ReadAllBytesAsync(path, cancellationToken));
-                var game = document.RootElement.GetProperty("game");
-                var id = game.GetProperty("gameId").GetString()!;
-                if (id.Length != 10 || id.Any(c => !char.IsAsciiDigit(c))) { throw new InvalidDataException("Invalid game ID."); }
-                if (request.GameIds is not null && !request.GameIds.Contains(id)) { continue; }
-                games[id] = game.GetProperty("actions").EnumerateArray().Select(x => x.GetProperty("period").GetInt32()).DefaultIfEmpty(0).Max();
-                gameTeams[id] = game.GetProperty("actions").EnumerateArray().Where(x => x.TryGetProperty("teamId", out var t) && t.GetInt64() > 0)
-                    .Select(x => x.GetProperty("teamId").ToString()).Distinct().ToArray();
-            }
-            catch (Exception exception) when (exception is JsonException or InvalidDataException or KeyNotFoundException or InvalidOperationException or IOException)
-            {
-                failures.Add(new(path, FailureKind.InvalidJson, exception.Message));
-            }
+            if (request.GameIds is not null && !request.GameIds.Contains(game.GameId)) { continue; }
+            if (request.StartDate is not null && !dateSelection.Contains(game.GameId)) { continue; }
+            games[game.GameId] = game.Periods;
+            gameTeams[game.GameId] = game.TeamIds;
         }
         var downloaded = 0;
         var skipped = 0;
@@ -41,6 +58,7 @@ internal sealed class ReferenceAcquisition(INbaReferenceSource source, IReferenc
                 .Append(("boxscoresummaryv2", 0))
                 .Concat(gameTeams[id].Select(t => ("commonteamroster-" + t, 0))))
             {
+                if (request.Endpoints is not null && !request.Endpoints.Contains(endpoint.StartsWith("commonteamroster-", StringComparison.Ordinal) ? "commonteamroster" : endpoint)) { continue; }
                 cancellationToken.ThrowIfCancellationRequested();
                 var resource = $"{id}/{endpoint}/p{period}";
                 try

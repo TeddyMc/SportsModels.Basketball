@@ -9,7 +9,7 @@ namespace SportsModels.Data.NbaOfficial.Application;
 
 internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValidator validator, IConversionWorkspace workspace) : INbaConversion
 {
-    internal const string Version = "nba-conversion-1";
+    internal const string Version = "nba-conversion-2";
 
     public async Task<ConversionRunResult> RunAsync(ConversionRequest request, CancellationToken cancellationToken = default)
     {
@@ -147,7 +147,8 @@ internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValid
                 if (metadata.RootElement.TryGetProperty("RetrievedAtUtc", out var time) && time.TryGetDateTime(out var value))
                 { retrieved = value.ToUniversalTime(); }
             }
-            catch (JsonException) { /* Raw bytes remain retained; malformed optional metadata supplies no timestamp. */ }
+            catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or InvalidOperationException)
+            { /* Raw bytes remain retained; unavailable optional metadata supplies no retrieval timestamp. */ }
         }
         return new(hash, Path.GetFullPath(path), relative, hash, bytes.LongLength, endpoint, retrieved, true);
     }

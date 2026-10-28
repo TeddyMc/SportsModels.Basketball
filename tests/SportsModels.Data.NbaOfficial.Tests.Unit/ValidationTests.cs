@@ -129,6 +129,74 @@ public sealed class ValidationTests
     private ValidationReport Validate(IReadOnlyList<BasketballPlayByPlayEvent> events, GameValidationContext? context = null) =>
         validator.Validate(new(1, [], Team(10, 101), Team(20, 201), events), context ?? Context());
 
+    [Test]
+    public void JumpBallAndSameClockLostBallCreditAreOneControlChange()
+    {
+        var jump = new JumpBallEvent(1001, 1, Clock(500), null, 101, 201, 20, 202);
+        var turnover = new TurnoverEvent(1002, 2, Clock(500), null, 10, 101, TurnoverType.LostBall, 201);
+        var report = Validate([jump, turnover]);
+        Assert.That(report.Checks.Any(c => c.Code == "POSSESSION.JUMP_TURNOVER" && c.Status == CheckStatus.Pass), Is.True);
+        Assert.That(report.Checks.Any(c => c.Code == "POSSESSION.CONTROL" && c.Status == CheckStatus.Fail), Is.False);
+    }
+
+    [Test]
+    public void DifferentClockTurnoverIsNotAutomaticallyGroupedWithJumpBall()
+    {
+        var jump = new JumpBallEvent(1001, 1, Clock(500), null, 101, 201, 20, 202);
+        var turnover = new TurnoverEvent(1002, 2, Clock(490), null, 10, 101, TurnoverType.LostBall, 201);
+        Assert.That(Validate([jump, turnover]).Checks.Any(c => c.Code == "POSSESSION.CONTROL" && c.Status == CheckStatus.Fail), Is.True);
+    }
+
+    [Test]
+    public void ReferenceTurnoverDefinitionDoesNotEraseTeamOnlyTurnover()
+    {
+        var reference = new StatisticLine(10, null, 0, new Dictionary<string, double> { ["TOV"] = 0 }, [])
+        { ComparisonKeys = new Dictionary<string, string> { ["TOV"] = "PLAYER_TOV" } };
+        var turnover = new TurnoverEvent(1001, 1, Clock(500), null, 10, null, TurnoverType.ShotClock, null);
+        var report = Validate([turnover], Context() with { ReferenceStatistics = [reference] });
+        var team = report.DerivedStatistics.Single(s => s.TeamId == 10 && s.PlayerId is null && s.Period == 0);
+        Assert.That(team.Values["TOV"], Is.EqualTo(1));
+        Assert.That(team.Values["TEAM_ONLY_TOV"], Is.EqualTo(1));
+        Assert.That(report.Checks.Single(c => c.Code == "BOX.RECONCILIATION" && c.Stat == "TOV").Status, Is.EqualTo(CheckStatus.Pass));
+    }
+
+    [Test]
+    public void LocalScoreChecksRecoverAfterUnknownAttemptWithoutValidatingCumulativeTotals()
+    {
+        var unknown = Shot(1, 600) with { Outcome = ShotOutcome.NotSet };
+        var report = Validate([unknown, Shot(2, 500)], Context() with { Scores = [new(1, 2, 0, 0), new(2, 4, 0, 1)] });
+        Assert.That(report.Checks.Last(c => c.Code == "SCORE.OBSERVATION").Status, Is.EqualTo(CheckStatus.NotAssessable));
+        Assert.That(report.Checks.Single(c => c.Code == "SCORE.INTERVAL").Status, Is.EqualTo(CheckStatus.Pass));
+    }
+
+    [TestCase(600, CheckStatus.NotAssessable)]
+    [TestCase(590, CheckStatus.Fail)]
+    public void EjectionClockDoesNotMakeSameActionCreditProofOfLaterParticipation(int turnoverClock, CheckStatus expected)
+    {
+        var ejection = new EjectionEvent(1001, 1, Clock(600), null, 10, 101, null);
+        var turnover = new TurnoverEvent(1002, 2, Clock(turnoverClock), null, 10, 101, TurnoverType.OffensiveFoul, null);
+        Assert.That(Validate([ejection, turnover]).Checks.Single(c => c.Code == "FOUL.EJECTION_PARTICIPATION").Status, Is.EqualTo(expected));
+    }
+
+    [TestCase(null, CheckStatus.NotAssessable)]
+    [TestCase(1.0, CheckStatus.Pass)]
+    [TestCase(0.1, CheckStatus.Fail)]
+    public void MinuteComparisonRequiresExplicitPrecisionEvidence(double? tolerance, CheckStatus expected)
+    {
+        var reference = new StatisticLine(10, 101, 1, new Dictionary<string, double> { ["MIN"] = 12.008 }, []);
+        var context = Context() with { ReferenceStatistics = [reference], MinutesToleranceSeconds = tolerance,
+            MinutesPrecisionEvidence = "Synthetic fixture with explicitly supplied precision bound." };
+        var report = Validate([Boundary(1, 720, PeriodMarker.Start), Boundary(2, 0, PeriodMarker.End)], context);
+        Assert.That(report.Checks.Single(c => c.Code == "BOX.RECONCILIATION" && c.Stat == "MIN").Status, Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void MissingOpeningBoundaryCannotPassCompleteMinuteCoverage()
+    {
+        var report = Validate([Shot(1, 600), Boundary(2, 0, PeriodMarker.End)]);
+        Assert.That(report.Checks.Where(c => c.Code == "MINUTES.COVERAGE").All(c => c.Status == CheckStatus.NotAssessable), Is.True);
+    }
+
     private static BasketballGameTeam Team(long id, int firstPlayer) => new(id, id.ToString(), [],
         Enumerable.Range(firstPlayer, 7).Select(p => new BasketballGamePlayer(p, p.ToString(), [])).ToArray());
 

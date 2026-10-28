@@ -121,6 +121,7 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
         var (statistics, lineups) = references.Observations(s => teams.GetValueOrDefault(s) is var t && t != 0 ? t : null,
             s => players.GetValueOrDefault(s)?.Id, ordinary);
         checks.AddRange(references.Checks);
+        checks.AddRange(NbaSourceDiagnostics.PeriodBreaks(rows, references, ordinary));
         var scoreObservations = rows.Select((r, i) => new ScoreObservation(i + 1,
             int.TryParse(r.Text("scoreHome"), out var h) ? h : null,
             int.TryParse(r.Text("scoreAway"), out var a) ? a : null, i)).Where(x => x.Home is not null || x.Away is not null).ToArray();
@@ -139,7 +140,7 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
         checks.Add(new("TIME.UTC", CheckStatus.NotAssessable,
             "Description wall clocks are minute precision; game date/timezone/midnight evidence is not verified. OccurredAtUtc remains null."));
         checks.Add(new("SHOT.LOCATION", CheckStatus.NotAssessable,
-            "xLegacy/yLegacy axes/orientation and court areas are unverified; retained raw, canonical location/distance/area unset."));
+            "xLegacy/yLegacy axes/orientation and court areas are unverified; retained raw, canonical location/area unset. Distance is populated only when a description feet label corroborates the numeric source field."));
         checks.Add(new("GAME.STATUS", references.FinalStatusVerified ? CheckStatus.Pass : CheckStatus.NotAssessable,
             references.FinalStatusVerified ? "Matched reference GameSummary reports final status 3."
                 : "Period-end rows alone do not independently establish official final/suspended status."));
@@ -266,8 +267,17 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
             var modifiers = Enum.GetValues<ShotModifier>().Where(m => m is not (ShotModifier.NotSet or ShotModifier.Other)
                 && SourceJson.Normalize(subtype + " " + type).Contains(SourceJson.Normalize(m.ToString()), StringComparison.Ordinal)).ToArray();
             if (outcome == ShotOutcome.NotSet || value == FieldGoalType.NotSet) { Add("SHOT.UNRESOLVED", CheckStatus.NotAssessable, index, "Shot value/result unknown; placeholder zero is not a missed three.", id); }
+            var distanceLabel = Regex.Match(description, @"\b(\d+)'(?=\s)");
+            double? distance = null;
+            if (distanceLabel.Success && int.TryParse(distanceLabel.Groups[1].Value, CultureInfo.InvariantCulture, out var feet)
+                && int.TryParse(row.Text("shotDistance"), CultureInfo.InvariantCulture, out var reportedFeet) && feet == reportedFeet)
+            {
+                distance = feet;
+                evidence.Add(new(id, "ShotDistanceFeet", BasketballEvidenceKind.Parsed, [Row(index)],
+                    "Numeric shotDistance agrees exactly with the explicit feet label in this shot description; no coordinate-derived distance or zero-placeholder assumption."));
+            }
             return new FieldGoalEvent(id, sequence, clock, null, team.Value, player, value, outcome,
-                assist, null, null, null, style, modifiers, CourtArea.NotSet,
+                assist, null, distance, null, style, modifiers, CourtArea.NotSet,
                 type == "Heave" ? FieldGoalAttemptCredit.Team : FieldGoalAttemptCredit.Player);
         }
         if (type == "Free Throw")
@@ -499,9 +509,24 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
             if (!explained.Add((converted.EventId, property.Name))) { continue; }
             var value = property.GetValue(converted);
             var missing = value is null || value is Enum e && System.Convert.ToInt32(e, CultureInfo.InvariantCulture) == 0;
+            var explanation = property.Name switch
+            {
+                "OccurredAtUtc" => "Description wall clocks have minute precision and ambiguous EST/DST/date handling; no occurrence UTC or interpolated precision is asserted.",
+                "ShotLocation" => "Provider xLegacy/yLegacy origin, axes and orientation are not verified against the canonical attacking-basket convention.",
+                "ShotDistanceFeet" => "No explicit feet label corroborates this numeric source distance; the original numeric value is retained without assuming zero is missing or valid.",
+                "CourtArea" => "No verified source-coordinate transform and competition-specific area derivation are available.",
+                "ShooterPlayerId" => "The team-only attempt does not establish the physical shooter; no player is fabricated and team credit is independent of shooter identity.",
+                "FieldGoalType" or "Outcome" => "Source result/value is blank, placeholder or otherwise unresolved; this is not an assumed missed shot or zero scoring effect.",
+                "AttemptNumber" or "TotalAttempts" => "Source FT label supplies no supported numbered award; an unnumbered technical is not manufactured as 1 of 1.",
+                "TeamId" or "RequestingTeamId" => "Source team/person/location evidence does not establish a game side for this event.",
+                "FouledPlayerId" => "No supported victim identity is supplied; a second double-foul charged participant is not a fouled player.",
+                "AssistingPlayerId" or "BlockingPlayerId" or "StealingPlayerId" => "No uniquely resolved compatible participant credit is established from this row and its supporting rows; null does not fabricate an actor.",
+                _ when property.Name.EndsWith("EventId", StringComparison.Ordinal) => "No unique supported causal/attempt relationship is established; missing linkage alone is not proof of an invalid basketball event.",
+                _ => "Required source evidence is missing, ambiguous or inapplicable; original row retained and no replacement fact inferred."
+            };
             evidence.Add(new(converted.EventId, property.Name, missing ? BasketballEvidenceKind.Unresolved
                 : property.Name == "Clock" ? BasketballEvidenceKind.Transformed : BasketballEvidenceKind.Parsed,
-                [Row(index)], missing ? "Unavailable, unresolved or inapplicable; original row retained. No default fact inferred."
+                [Row(index)], missing ? explanation
                     : "Source fields/description interpreted with typed NBA semantics; identities resolve through the versioned registry."));
         }
     }
@@ -590,7 +615,8 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
     {
         "Substitution" => new(sequence, ["MIN", "+/-"], true, false, "Unresolved substitution"),
         "Foul" or "Ejection" => new(sequence, ["PF"], false, true, "Unresolved charged/ejected actor"),
-        "" => new(sequence, ["STL", "BLK"], false, true, "Unresolved auxiliary credit"),
+        "" => new(sequence, row.Text("description").Contains("BLOCK", StringComparison.Ordinal) ? ["BLK"]
+            : row.Text("description").Contains("STEAL", StringComparison.Ordinal) ? ["STL"] : ["STL", "BLK"], false, true, "Unresolved auxiliary credit"),
         "Timeout" or "Instant Replay" => new(sequence, [], false, true, "Unresolved administrative context"),
         _ => new(sequence, ["PTS", "FGA", "FGM", "3PA", "3PM", "FTA", "FTM", "OREB", "DREB", "REB", "AST", "STL", "BLK", "TOV", "PF", "MIN", "+/-"], true, true, "Unresolved basketball history")
     };

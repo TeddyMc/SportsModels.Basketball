@@ -16,10 +16,11 @@ internal sealed class ConversionWorkspace : IConversionWorkspace
     public bool Exists(string path) => File.Exists(path);
     public ReferenceBundle ReadReferences(string directory, string gameId)
     {
-        var folder = Path.Combine(directory, gameId);
+        var folders = new List<string> { Path.Combine(directory, gameId) };
+        if (Directory.Exists(directory)) { folders.AddRange(Directory.EnumerateDirectories(directory).Select(endpoint => Path.Combine(endpoint, gameId))); }
         var inputs = new List<(string Path, byte[] Bytes)>();
         var errors = new List<string>();
-        if (Directory.Exists(folder))
+        foreach (var folder in folders.Where(Directory.Exists))
         {
             foreach (var path in Directory.EnumerateFiles(folder, "*.json").Where(p => !p.EndsWith(".retrieval.json", StringComparison.Ordinal)))
             {

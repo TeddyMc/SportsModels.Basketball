@@ -10,11 +10,14 @@ internal static class SequenceDiagnostics
         long? openingWinner = null;
         long? pendingMissTeam = null;
         FreeThrowEvent? previousFt = null;
+        JumpBallEvent? recentJump = null;
         var events = game.Events.ToDictionary(e => e.EventId);
         var firstPeriod = true;
         foreach (var e in game.Events)
         {
             var period = BasketballValidator.Period(e.Clock);
+            if (recentJump is not null && (e.Clock != recentJump.Clock || e is not (JumpBallEvent or TurnoverEvent or SubstitutionEvent or TimeoutEvent)))
+            { recentJump = null; }
             if (context.Gaps.Any(g => g.Possession && g.SequenceNumber <= e.SequenceNumber
                 && (game.Events.LastOrDefault(x => x.SequenceNumber < e.SequenceNumber)?.SequenceNumber ?? 0) < g.SequenceNumber))
             { control = null; pendingMissTeam = null; }
@@ -31,6 +34,7 @@ internal static class SequenceDiagnostics
                         "Rule 6 I(b): first possession winner opens Q4, opponent Q2/Q3; intervening penalties can invalidate entitlement.", boundary.EventId, period)); }
                     break;
                 case JumpBallEvent jump:
+                    recentJump = jump;
                     control = jump.GainingTeamId;
                     pendingMissTeam = null;
                     if (period == 1 && firstPeriod) { openingWinner = jump.GainingTeamId; firstPeriod = false; }
@@ -61,12 +65,20 @@ internal static class SequenceDiagnostics
                     pendingMissTeam = null;
                     break;
                 case TurnoverEvent turnover:
-                    CheckControl(turnover.TeamId, control, e, checks);
+                    var opponent = turnover.TeamId == game.HomeTeam.TeamId ? game.AwayTeam : game.HomeTeam;
+                    var jumpCredit = recentJump?.GainingTeamId == opponent.TeamId && turnover.TurnoverType == TurnoverType.LostBall
+                        && turnover.StealingPlayerId is long jumpStealer && opponent.Players.Any(p => p.PlayerId == jumpStealer);
+                    if (jumpCredit)
+                    {
+                        checks.Add(new("POSSESSION.JUMP_TURNOVER", CheckStatus.Pass,
+                            "Same-clock lost-ball/steal credit records the jump-ball control change; it is not a new offensive possession by the losing team.", e.EventId, period));
+                    }
+                    else { CheckControl(turnover.TeamId, control, e, checks); }
+                    recentJump = null;
                     control = Opponent(game, turnover.TeamId);
                     pendingMissTeam = null;
                     if (turnover.StealingPlayerId is long stealing)
                     {
-                        var opponent = turnover.TeamId == game.HomeTeam.TeamId ? game.AwayTeam : game.HomeTeam;
                         checks.Add(new("POSSESSION.STEAL_TEAM", opponent.Players.Any(p => p.PlayerId == stealing) ? CheckStatus.Pass : CheckStatus.Fail,
                             "Auxiliary steal belongs to the opponent and causes no second possession change.", e.EventId, period, Severity: FindingSeverity.Error));
                     }

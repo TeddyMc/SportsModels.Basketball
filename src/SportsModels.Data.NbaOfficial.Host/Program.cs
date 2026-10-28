@@ -71,12 +71,17 @@ static async Task<int> RunDataCommand(string[] arguments)
             return 0;
         }
         var builder = new ContainerBuilder();
-        if (arguments[0] == "references" && arguments.Length is 3 or 4)
+        if (arguments[0] == "references" && arguments.Length is >= 3 and <= 7)
         {
             builder.RegisterModule<PlayByPlayModule>();
             using var container = builder.Build();
             var result = await container.Resolve<INbaReferenceAcquisition>().RunAsync(new(arguments[1], arguments[2],
-                GameIds: arguments.Length == 4 ? arguments[3].Split(',') : null), cancellation.Token);
+                GameIds: arguments.Length >= 4 && arguments[3] != "all" ? arguments[3].Split(',') : null)
+            {
+                Endpoints = arguments.Length >= 5 && arguments[4] != "all" ? arguments[4].Split(',') : null,
+                StartDate = arguments.Length >= 6 ? DateOnly.ParseExact(arguments[5], "yyyy-MM-dd", CultureInfo.InvariantCulture) : null,
+                EndDate = arguments.Length >= 7 ? DateOnly.ParseExact(arguments[6], "yyyy-MM-dd", CultureInfo.InvariantCulture) : null
+            }, cancellation.Token);
             foreach (var failure in result.Failures) { Console.Error.WriteLine($"FAILED {failure.Resource} [{failure.Kind}]: {failure.Message}"); }
             Console.WriteLine($"Games={result.Discovered} Snapshots={result.Downloaded} Existing={result.Skipped} Failures={result.Failed}");
             return result.Failed == 0 ? 0 : 1;
@@ -91,12 +96,12 @@ static async Task<int> RunDataCommand(string[] arguments)
             Console.WriteLine(result.RunDirectory);
             return result.Failed == 0 ? 0 : 1;
         }
-        Console.Error.WriteLine("Usage: references <pbp-directory> <reference-directory> [comma-separated-game-ids]\n"
+        Console.Error.WriteLine("Usage: references <pbp-directory> <reference-directory> [game-ids|all] [endpoints|all] [start:yyyy-MM-dd] [end:yyyy-MM-dd]\n"
             + "       convert <pbp-directory> <reference-directory> <output-directory> <registry.sqlite> [comma-separated-game-ids]\n"
             + "       backup-registry <registry.sqlite> <new-backup.sqlite>");
         return 2;
     }
     catch (OperationCanceledException) { Console.Error.WriteLine("Cancelled; incomplete runs have no completion manifest."); return 130; }
-    catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException)
+    catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException or FormatException)
     { Console.Error.WriteLine(exception.Message); return 2; }
 }

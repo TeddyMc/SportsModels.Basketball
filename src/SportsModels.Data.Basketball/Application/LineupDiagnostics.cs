@@ -19,6 +19,10 @@ internal static class LineupDiagnostics
                     confidence ? opening[0].Evidence : "No reliable opening five. Previous-period closing lineup is not assumed unchanged across the break.",
                     Period: period.Key, EntityId: team.TeamId));
                 var previousClock = period.Key <= 4 ? 720.0 : 300.0;
+                var starts = period.OfType<PeriodBoundaryEvent>().Where(e => e.Marker == PeriodMarker.Start).ToArray();
+                var ends = period.OfType<PeriodBoundaryEvent>().Where(e => e.Marker == PeriodMarker.End).ToArray();
+                var completeBoundaries = starts.Length == 1 && starts[0].Clock.ClockRemaining.TotalSeconds == previousClock
+                    && ends.Length == 1 && ends[0].Clock.ClockRemaining == TimeSpan.Zero;
                 if (!context.OrdinaryNbaRules) { lineup = null; }
                 var previousSequence = period.Min(e => e.SequenceNumber) - 1;
                 foreach (var group in ClockGroups(period))
@@ -92,7 +96,7 @@ internal static class LineupDiagnostics
                     }
                 }
                 // Do not append an unobserved interval to zero; a missing period-end is a coverage gap.
-                checks.Add(new("MINUTES.COVERAGE", confidence && lineup is not null && previousClock == 0 ? CheckStatus.Pass : CheckStatus.NotAssessable,
+                checks.Add(new("MINUTES.COVERAGE", confidence && completeBoundaries && lineup is not null && previousClock == 0 ? CheckStatus.Pass : CheckStatus.NotAssessable,
                     "Stints integrate observed decreasing playing clock only, split at period boundaries. Missing starts/ends or lineups prevent full-period totals.",
                     Period: period.Key, EntityId: team.TeamId));
             }

@@ -2,7 +2,7 @@
 
 Unified basketball core contracts and a runnable in-memory example are documented in [docs/BASKETBALL_CORE_CONTRACTS.md](docs/BASKETBALL_CORE_CONTRACTS.md).
 
-Local conversion, reference acquisition, persistent identities and diagnostic report usage are documented in [docs/NBA_CONVERSION.md](docs/NBA_CONVERSION.md). Conversion remains under implementation in issue #13; partial output is not a claim of clean or fully validated data.
+Local conversion, reference acquisition, persistent identities and diagnostic report usage are documented in [docs/NBA_CONVERSION.md](docs/NBA_CONVERSION.md). Partial output is not a claim of clean or fully validated data.
 
 Initial implementation of [Issue #2](https://github.com/TeddyMc/SportsModels.Basketball/issues/2).
 Requires the .NET 8 SDK and HTTPS access to NuGet and `stats.nba.com`.
@@ -24,7 +24,7 @@ Both endpoints use native C# `HttpClient` with the supplied Chrome request heade
 
 New downloads contain the Stats `playbyplayv3` response as returned by the NBA. No CDN schema is assumed or enforced, and raw responses are not converted. Use a fresh output directory when switching endpoints: reruns skip existing valid JSON without checking its source or schema.
 
-The only parsed basketball fields are discovery metadata needed to select completed games. Play-by-play is checked for JSON syntax only, without basketball schema validation, action parsing, conversion, or cleaning. A syntactically valid JSON response is not evidence of basketball data completeness.
+The raw PBP acquisition command parses discovery metadata needed to select completed games and checks downloaded PBP for JSON syntax only. The separate local conversion command parses basketball actions and produces diagnostics. A syntactically valid raw response is not evidence of basketball data completeness.
 
 ## Storage and reruns
 
@@ -36,9 +36,9 @@ HTTP/transport errors, 30-second request timeouts, invalid JSON and storage fail
 
 ## Structure
 
-- `SportsModels.Data.NbaOfficial`: one pragmatic onion with Contracts, Application, Interfaces, Infrastructure and Autofac folders. There is no basketball domain model in this transport-only task. Application depends on I/O interfaces; Autofac connects HTTP and filesystem implementations via constructor injection.
+- `SportsModels.Data.NbaOfficial`: raw/reference acquisition and source-specific conversion with Contracts, Application, Interfaces, Infrastructure and Autofac folders. Application depends on I/O interfaces; Autofac connects HTTP, filesystem and shared identities through constructor injection. Reusable unified-event validation lives in `SportsModels.Data.Basketball`.
 - `SportsModels.Data.NbaOfficial.Host`: runnable command and summary/exit codes.
-- `SportsModels.Data.NbaOfficial.Tests.Unit`: fast deterministic NUnit tests, using an HTTP handler stub and isolated temporary directories; no Internet required.
+- `SportsModels.Data.NbaOfficial.Tests.Unit`: deterministic acquisition, conversion, registry and validator tests using HTTP stubs, small saved fixtures and isolated temporary directories; no Internet required.
 
 Downloaded data lives outside the repository by default; season logs are under `C:\Data\Basketball\NbaOfficial\logs\`. Repository-local output overrides under `NbaOfficial/`, SDK setup scratch files and test artifacts are ignored by Git. No downloaded NBA dataset is included. The old local `data/` folder was removed at the user's request; old bare-ID filenames are not migrated or detected as skips under the new naming scheme.
 

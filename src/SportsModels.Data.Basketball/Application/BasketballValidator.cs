@@ -16,7 +16,7 @@ public sealed class BasketballValidator : IBasketballValidator
         var statistics = GameStatistics.Derive(game, context, stints, checks);
         CheckReferences(statistics, context, checks);
         SequenceDiagnostics.Check(game, context, checks);
-        return new(checks, statistics, stints);
+        return new(checks.Select(c => c.Status == CheckStatus.Fail ? c : c with { Severity = null }).ToArray(), statistics, stints);
     }
 
     private static void CheckIdentities(BasketballGamePlayByPlay game, List<CheckResult> checks)
@@ -105,27 +105,41 @@ public sealed class BasketballValidator : IBasketballValidator
         var home = 0;
         var away = 0;
         var known = true;
+        ScoreObservation? previousObservation = null;
+        var intervalHome = 0;
+        var intervalAway = 0;
+        var intervalKnown = true;
         var events = game.Events.GroupBy(e => e.SequenceNumber).ToDictionary(g => g.Key, g => g.First());
         var scores = context.Scores.ToLookup(s => s.SequenceNumber);
         var maximum = game.Events.Select(e => e.SequenceNumber).Concat(context.Scores.Select(s => s.SequenceNumber)).DefaultIfEmpty().Max();
         for (var sequence = 1; sequence <= maximum; sequence++)
         {
-            if (context.Gaps.Any(g => g.SequenceNumber == sequence && g.Statistics.Contains("PTS"))) { known = false; }
+            if (context.Gaps.Any(g => g.SequenceNumber == sequence && g.Statistics.Contains("PTS"))) { known = false; intervalKnown = false; }
             if (events.TryGetValue(sequence, out var item))
             {
                 var (team, points) = Points(item);
-                if (points is null) { known = false; }
-                else if (team == game.HomeTeam.TeamId) { home += points.Value; }
-                else if (team == game.AwayTeam.TeamId) { away += points.Value; }
+                if (points is null) { known = false; intervalKnown = false; }
+                else if (team == game.HomeTeam.TeamId) { home += points.Value; intervalHome += points.Value; }
+                else if (team == game.AwayTeam.TeamId) { away += points.Value; intervalAway += points.Value; }
             }
             foreach (var observation in scores[sequence])
             {
+                if (previousObservation is { Home: not null, Away: not null } previous && observation.Home is not null && observation.Away is not null)
+                {
+                    var intervalMatches = observation.Home - previous.Home == intervalHome && observation.Away - previous.Away == intervalAway;
+                    checks.Add(new("SCORE.INTERVAL", !intervalKnown ? CheckStatus.NotAssessable : intervalMatches ? CheckStatus.Pass : CheckStatus.Fail,
+                        $"Between source rows {previous.SourceRow} and {observation.SourceRow}, scoring increments home={intervalHome}, away={intervalAway}. Local assessment can recover after earlier unknown scoring without claiming complete cumulative totals.",
+                        events.GetValueOrDefault(sequence)?.EventId, Severity: intervalKnown && !intervalMatches ? FindingSeverity.Warning : null,
+                        SourceRows: [previous.SourceRow, observation.SourceRow]));
+                }
                 var matches = (observation.Home is null || observation.Home == home) && (observation.Away is null || observation.Away == away);
                 checks.Add(new("SCORE.OBSERVATION", !known ? CheckStatus.NotAssessable : matches ? CheckStatus.Pass : CheckStatus.Fail,
                     $"After-row observation home={observation.Home}, away={observation.Away}; effective stream home={home}, away={away}. Source corrections/unknown scoring are not synthetic adjustments.",
                     events.GetValueOrDefault(sequence)?.EventId, Expected: observation.Home is not null ? observation.Home : observation.Away,
                     Observed: observation.Home is not null ? home : away, Severity: known && !matches ? FindingSeverity.Warning : null, SourceRows: [observation.SourceRow]));
                 if (known && !matches) { known = false; }
+                if (observation.Home is not null && observation.Away is not null)
+                { previousObservation = observation; intervalHome = 0; intervalAway = 0; intervalKnown = true; }
             }
         }
         if (context.Scores.Count == 0) { checks.Add(new("SCORE.OBSERVATION", CheckStatus.NotAssessable, "No source score observations.")); }
@@ -147,15 +161,16 @@ public sealed class BasketballValidator : IBasketballValidator
             foreach (var stat in GameStatistics.CountingStats.Append("MIN").Append("+/-"))
             {
                 var expected = reference.Values.GetValueOrDefault(stat);
-                var actual = line?.Values.GetValueOrDefault(stat);
-                var known = line is not null && !line.Unknown.Contains(stat) && !reference.Unknown.Contains(stat)
+                var comparisonKey = reference.ComparisonKeys.GetValueOrDefault(stat, stat);
+                var actual = line?.Values.GetValueOrDefault(comparisonKey);
+                var known = line is not null && line.Values.ContainsKey(comparisonKey) && !line.Unknown.Contains(comparisonKey) && !reference.Unknown.Contains(stat)
                     && reference.Values.ContainsKey(stat) && (stat != "MIN" || context.MinutesToleranceSeconds is not null);
                 var matches = stat == "MIN" ? Math.Abs(expected - (actual ?? 0)) * 60 <= context.MinutesToleranceSeconds : expected == actual;
                 // Minute precision/rounding has not been verified merely by receiving a value.
                 checks.Add(new("BOX.RECONCILIATION", !known ? CheckStatus.NotAssessable : matches ? CheckStatus.Pass : CheckStatus.Fail,
                     stat == "MIN" ? context.MinutesPrecisionEvidence
                     : !known ? "Affected conversion/derived/reference coverage is unknown."
-                    : "Comparable normalized counting statistics use exact equality; agreement is corroboration, not independent ground truth.",
+                    : $"Comparable normalized counting statistics use exact equality ({stat} compared with {comparisonKey}); agreement is corroboration, not independent ground truth.",
                     Period: reference.Period, EntityId: reference.PlayerId ?? reference.TeamId, Stat: stat, Expected: expected, Observed: actual,
                     Severity: known && !matches ? FindingSeverity.Warning : null));
             }

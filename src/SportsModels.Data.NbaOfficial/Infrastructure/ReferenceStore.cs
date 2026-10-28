@@ -11,10 +11,15 @@ internal sealed class ReferenceStore : IReferenceStore
     {
         using var document = JsonDocument.Parse(bytes);
         var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-        var folder = Path.Combine(directory, gameId);
+        var folder = Path.Combine(directory, endpoint.Split('-')[0], gameId);
         Directory.CreateDirectory(folder);
         var path = Path.Combine(folder, $"{endpoint}-p{period}-{hash}.json");
-        if (File.Exists(path)) { return false; }
+        if (File.Exists(path))
+        {
+            if (!(await File.ReadAllBytesAsync(path, cancellationToken)).SequenceEqual(bytes))
+            { throw new InvalidDataException("Existing content-addressed reference has different bytes; inspect the retained file before retrying."); }
+            return false;
+        }
 
         // Content-addressed snapshots are never overwritten; refreshes add revisions.
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";

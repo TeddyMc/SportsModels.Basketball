@@ -1,5 +1,10 @@
 namespace SportsModels.Data.NbaOfficial.Interfaces;
 
+internal interface ILocalGameInventory
+{
+    Task<Definitions.LocalGameInventory> ReadAsync(string directory, CancellationToken cancellationToken);
+}
+
 internal interface INbaReferenceSource
 {
     Task<byte[]> DownloadAsync(string endpoint, string gameId, int period, CancellationToken cancellationToken);
