@@ -237,6 +237,37 @@ public sealed class ConversionTests
         Assert.That(converted.Context.Gaps.Last().Statistics, Does.Contain("PTS"));
     }
 
+    [TestCase("Shooting", FreeThrowCategory.Ordinary, true)]
+    [TestCase("Away From Play", FreeThrowCategory.AwayFromPlay, false)]
+    public void SingleFreeThrowDoesNotAloneEstablishAnAndOne(string foulType, FreeThrowCategory category, bool linkedShot)
+    {
+        var node = JsonNode.Parse(SourceCase("0022501122"))!;
+        var actions = node["game"]!["actions"]!.AsArray();
+        var shot = actions.First(a => a!["actionType"]!.GetValue<string>() == "Made Shot")!.DeepClone();
+        var teamId = shot["teamId"]!.ToString();
+        var opposing = actions.First(a => a!["teamId"]!.ToString() != teamId && a["teamId"]!.ToString() != "0"
+            && a["playerName"]!.ToString() != "")!.DeepClone();
+        shot["actionId"] = 90001;
+        shot["clock"] = "PT01M00.00S";
+        opposing["actionId"] = 90002;
+        opposing["clock"] = "PT01M00.00S";
+        opposing["actionType"] = "Foul";
+        opposing["subType"] = foulType;
+        var ft = shot.DeepClone();
+        ft["actionId"] = 90003;
+        ft["actionType"] = "Free Throw";
+        ft["subType"] = "Free Throw 1 of 1";
+        ft["description"] = "Fixture Free Throw 1 of 1 (1 PTS)";
+        actions.Add(shot);
+        actions.Add(opposing);
+        actions.Add(ft);
+        var game = Convert(JsonSerializer.SerializeToUtf8Bytes(node)).Game;
+        var freeThrow = game.Events.OfType<FreeThrowEvent>().Last();
+        var foul = game.Events.OfType<FoulEvent>().Single(f => f.EventId == freeThrow.ParentFoulEventId);
+        Assert.That(freeThrow.Category, Is.EqualTo(category));
+        Assert.That(foul.RelatedFieldGoalEventId is not null, Is.EqualTo(linkedShot));
+    }
+
     private ConvertedGame Convert(byte[] bytes, ReferenceBundle? references = null) =>
         registry.InTransaction(() => new NbaGameConverter(registry).Convert(bytes, SourceJson.Hash(bytes), references ?? new ReferenceBundle()));
 

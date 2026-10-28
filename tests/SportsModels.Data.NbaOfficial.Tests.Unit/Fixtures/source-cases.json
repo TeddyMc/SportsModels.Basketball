@@ -5,6 +5,7 @@
         "GameId":  "0022501122",
         "Rows":  [
                      {
+                         "RowIndex":  1,
                          "Action":  {
                                         "actionNumber":  4,
                                         "clock":  "PT12M00.00S",
@@ -29,10 +30,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  2
-                                    },
-                         "RowIndex":  1
+                                    }
                      },
                      {
+                         "RowIndex":  2,
                          "Action":  {
                                         "actionNumber":  7,
                                         "clock":  "PT11M46.00S",
@@ -57,10 +58,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  3
-                                    },
-                         "RowIndex":  2
+                                    }
                      },
                      {
+                         "RowIndex":  3,
                          "Action":  {
                                         "actionNumber":  8,
                                         "clock":  "PT11M41.00S",
@@ -85,10 +86,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  4
-                                    },
-                         "RowIndex":  3
+                                    }
                      },
                      {
+                         "RowIndex":  5,
                          "Action":  {
                                         "actionNumber":  11,
                                         "clock":  "PT11M16.00S",
@@ -113,10 +114,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  6
-                                    },
-                         "RowIndex":  5
+                                    }
                      },
                      {
+                         "RowIndex":  8,
                          "Action":  {
                                         "actionNumber":  17,
                                         "clock":  "PT10M41.00S",
@@ -141,10 +142,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  9
-                                    },
-                         "RowIndex":  8
+                                    }
                      },
                      {
+                         "RowIndex":  10,
                          "Action":  {
                                         "actionNumber":  19,
                                         "clock":  "PT10M30.00S",
@@ -169,10 +170,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  11
-                                    },
-                         "RowIndex":  10
+                                    }
                      },
                      {
+                         "RowIndex":  12,
                          "Action":  {
                                         "actionNumber":  21,
                                         "clock":  "PT10M03.00S",
@@ -197,10 +198,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  13
-                                    },
-                         "RowIndex":  12
+                                    }
                      },
                      {
+                         "RowIndex":  13,
                          "Action":  {
                                         "actionNumber":  23,
                                         "clock":  "PT09M49.00S",
@@ -225,10 +226,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  14
-                                    },
-                         "RowIndex":  13
+                                    }
                      },
                      {
+                         "RowIndex":  14,
                          "Action":  {
                                         "actionNumber":  24,
                                         "clock":  "PT09M47.00S",
@@ -253,10 +254,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  15
-                                    },
-                         "RowIndex":  14
+                                    }
                      },
                      {
+                         "RowIndex":  20,
                          "Action":  {
                                         "actionNumber":  30,
                                         "clock":  "PT09M17.00S",
@@ -281,10 +282,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  21
-                                    },
-                         "RowIndex":  20
+                                    }
                      },
                      {
+                         "RowIndex":  44,
                          "Action":  {
                                         "actionNumber":  64,
                                         "clock":  "PT06M53.00S",
@@ -309,10 +310,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  45
-                                    },
-                         "RowIndex":  44
+                                    }
                      },
                      {
+                         "RowIndex":  50,
                          "Action":  {
                                         "actionNumber":  71,
                                         "clock":  "PT05M55.00S",
@@ -337,10 +338,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  51
-                                    },
-                         "RowIndex":  50
+                                    }
                      },
                      {
+                         "RowIndex":  59,
                          "Action":  {
                                         "actionNumber":  83,
                                         "clock":  "PT05M24.00S",
@@ -365,10 +366,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  60
-                                    },
-                         "RowIndex":  59
+                                    }
                      },
                      {
+                         "RowIndex":  67,
                          "Action":  {
                                         "actionNumber":  94,
                                         "clock":  "PT04M54.00S",
@@ -393,10 +394,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  68
-                                    },
-                         "RowIndex":  67
+                                    }
                      },
                      {
+                         "RowIndex":  69,
                          "Action":  {
                                         "actionNumber":  96,
                                         "clock":  "PT04M47.00S",
@@ -421,10 +422,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  70
-                                    },
-                         "RowIndex":  69
+                                    }
                      },
                      {
+                         "RowIndex":  72,
                          "Action":  {
                                         "actionNumber":  100,
                                         "clock":  "PT04M26.00S",
@@ -449,10 +450,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  73
-                                    },
-                         "RowIndex":  72
+                                    }
                      },
                      {
+                         "RowIndex":  82,
                          "Action":  {
                                         "actionNumber":  116,
                                         "clock":  "PT03M47.00S",
@@ -477,10 +478,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  83
-                                    },
-                         "RowIndex":  82
+                                    }
                      },
                      {
+                         "RowIndex":  84,
                          "Action":  {
                                         "actionNumber":  118,
                                         "clock":  "PT03M22.00S",
@@ -505,10 +506,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  85
-                                    },
-                         "RowIndex":  84
+                                    }
                      },
                      {
+                         "RowIndex":  108,
                          "Action":  {
                                         "actionNumber":  148,
                                         "clock":  "PT00M46.60S",
@@ -533,10 +534,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  109
-                                    },
-                         "RowIndex":  108
+                                    }
                      },
                      {
+                         "RowIndex":  126,
                          "Action":  {
                                         "actionNumber":  173,
                                         "clock":  "PT11M06.00S",
@@ -561,10 +562,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  127
-                                    },
-                         "RowIndex":  126
+                                    }
                      },
                      {
+                         "RowIndex":  299,
                          "Action":  {
                                         "actionNumber":  412,
                                         "clock":  "PT05M37.00S",
@@ -589,10 +590,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  300
-                                    },
-                         "RowIndex":  299
+                                    }
                      },
                      {
+                         "RowIndex":  300,
                          "Action":  {
                                         "actionNumber":  414,
                                         "clock":  "PT05M37.00S",
@@ -617,10 +618,10 @@
                                         "videoAvailable":  0,
                                         "shotValue":  0,
                                         "actionId":  301
-                                    },
-                         "RowIndex":  300
+                                    }
                      },
                      {
+                         "RowIndex":  301,
                          "Action":  {
                                         "actionNumber":  415,
                                         "clock":  "PT05M37.00S",
@@ -645,10 +646,10 @@
                                         "videoAvailable":  0,
                                         "shotValue":  0,
                                         "actionId":  302
-                                    },
-                         "RowIndex":  301
+                                    }
                      },
                      {
+                         "RowIndex":  306,
                          "Action":  {
                                         "actionNumber":  424,
                                         "clock":  "PT05M35.00S",
@@ -673,10 +674,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  307
-                                    },
-                         "RowIndex":  306
+                                    }
                      },
                      {
+                         "RowIndex":  431,
                          "Action":  {
                                         "actionNumber":  604,
                                         "clock":  "PT05M39.00S",
@@ -701,10 +702,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  432
-                                    },
-                         "RowIndex":  431
+                                    }
                      },
                      {
+                         "RowIndex":  441,
                          "Action":  {
                                         "actionNumber":  617,
                                         "clock":  "PT04M13.00S",
@@ -729,10 +730,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  442
-                                    },
-                         "RowIndex":  441
+                                    }
                      },
                      {
+                         "RowIndex":  448,
                          "Action":  {
                                         "actionNumber":  631,
                                         "clock":  "PT03M30.00S",
@@ -757,10 +758,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  449
-                                    },
-                         "RowIndex":  448
+                                    }
                      },
                      {
+                         "RowIndex":  450,
                          "Action":  {
                                         "actionNumber":  634,
                                         "clock":  "PT03M09.00S",
@@ -785,10 +786,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  451
-                                    },
-                         "RowIndex":  450
+                                    }
                      },
                      {
+                         "RowIndex":  454,
                          "Action":  {
                                         "actionNumber":  639,
                                         "clock":  "PT02M49.00S",
@@ -813,10 +814,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  455
-                                    },
-                         "RowIndex":  454
+                                    }
                      },
                      {
+                         "RowIndex":  459,
                          "Action":  {
                                         "actionNumber":  646,
                                         "clock":  "PT02M27.00S",
@@ -841,8 +842,7 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  460
-                                    },
-                         "RowIndex":  459
+                                    }
                      }
                  ]
     },
@@ -852,6 +852,7 @@
         "GameId":  "0022500673",
         "Rows":  [
                      {
+                         "RowIndex":  1,
                          "Action":  {
                                         "actionNumber":  4,
                                         "clock":  "PT12M00.00S",
@@ -876,10 +877,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  2
-                                    },
-                         "RowIndex":  1
+                                    }
                      },
                      {
+                         "RowIndex":  2,
                          "Action":  {
                                         "actionNumber":  7,
                                         "clock":  "PT11M41.00S",
@@ -904,10 +905,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  3
-                                    },
-                         "RowIndex":  2
+                                    }
                      },
                      {
+                         "RowIndex":  3,
                          "Action":  {
                                         "actionNumber":  9,
                                         "clock":  "PT11M17.00S",
@@ -932,10 +933,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  4
-                                    },
-                         "RowIndex":  3
+                                    }
                      },
                      {
+                         "RowIndex":  4,
                          "Action":  {
                                         "actionNumber":  10,
                                         "clock":  "PT11M15.00S",
@@ -960,10 +961,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  5
-                                    },
-                         "RowIndex":  4
+                                    }
                      },
                      {
+                         "RowIndex":  5,
                          "Action":  {
                                         "actionNumber":  11,
                                         "clock":  "PT11M02.00S",
@@ -988,10 +989,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  6
-                                    },
-                         "RowIndex":  5
+                                    }
                      },
                      {
+                         "RowIndex":  6,
                          "Action":  {
                                         "actionNumber":  12,
                                         "clock":  "PT10M59.00S",
@@ -1016,10 +1017,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  7
-                                    },
-                         "RowIndex":  6
+                                    }
                      },
                      {
+                         "RowIndex":  7,
                          "Action":  {
                                         "actionNumber":  13,
                                         "clock":  "PT10M43.00S",
@@ -1044,10 +1045,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  8
-                                    },
-                         "RowIndex":  7
+                                    }
                      },
                      {
+                         "RowIndex":  13,
                          "Action":  {
                                         "actionNumber":  20,
                                         "clock":  "PT09M41.00S",
@@ -1072,10 +1073,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  14
-                                    },
-                         "RowIndex":  13
+                                    }
                      },
                      {
+                         "RowIndex":  25,
                          "Action":  {
                                         "actionNumber":  34,
                                         "clock":  "PT08M09.00S",
@@ -1100,10 +1101,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  26
-                                    },
-                         "RowIndex":  25
+                                    }
                      },
                      {
+                         "RowIndex":  32,
                          "Action":  {
                                         "actionNumber":  42,
                                         "clock":  "PT07M24.00S",
@@ -1128,10 +1129,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  33
-                                    },
-                         "RowIndex":  32
+                                    }
                      },
                      {
+                         "RowIndex":  33,
                          "Action":  {
                                         "actionNumber":  44,
                                         "clock":  "PT07M24.00S",
@@ -1156,10 +1157,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  34
-                                    },
-                         "RowIndex":  33
+                                    }
                      },
                      {
+                         "RowIndex":  34,
                          "Action":  {
                                         "actionNumber":  45,
                                         "clock":  "PT07M24.00S",
@@ -1184,10 +1185,10 @@
                                         "videoAvailable":  0,
                                         "shotValue":  0,
                                         "actionId":  35
-                                    },
-                         "RowIndex":  34
+                                    }
                      },
                      {
+                         "RowIndex":  35,
                          "Action":  {
                                         "actionNumber":  47,
                                         "clock":  "PT07M24.00S",
@@ -1212,10 +1213,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  36
-                                    },
-                         "RowIndex":  35
+                                    }
                      },
                      {
+                         "RowIndex":  36,
                          "Action":  {
                                         "actionNumber":  48,
                                         "clock":  "PT07M04.00S",
@@ -1240,10 +1241,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  37
-                                    },
-                         "RowIndex":  36
+                                    }
                      },
                      {
+                         "RowIndex":  37,
                          "Action":  {
                                         "actionNumber":  49,
                                         "clock":  "PT06M50.00S",
@@ -1268,10 +1269,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  38
-                                    },
-                         "RowIndex":  37
+                                    }
                      },
                      {
+                         "RowIndex":  39,
                          "Action":  {
                                         "actionNumber":  51,
                                         "clock":  "PT06M37.00S",
@@ -1296,10 +1297,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  40
-                                    },
-                         "RowIndex":  39
+                                    }
                      },
                      {
+                         "RowIndex":  48,
                          "Action":  {
                                         "actionNumber":  64,
                                         "clock":  "PT06M01.00S",
@@ -1324,10 +1325,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  49
-                                    },
-                         "RowIndex":  48
+                                    }
                      },
                      {
+                         "RowIndex":  59,
                          "Action":  {
                                         "actionNumber":  79,
                                         "clock":  "PT05M34.00S",
@@ -1352,10 +1353,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  60
-                                    },
-                         "RowIndex":  59
+                                    }
                      },
                      {
+                         "RowIndex":  61,
                          "Action":  {
                                         "actionNumber":  81,
                                         "clock":  "PT05M31.00S",
@@ -1380,10 +1381,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  62
-                                    },
-                         "RowIndex":  61
+                                    }
                      },
                      {
+                         "RowIndex":  87,
                          "Action":  {
                                         "actionNumber":  120,
                                         "clock":  "PT03M19.00S",
@@ -1408,10 +1409,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  88
-                                    },
-                         "RowIndex":  87
+                                    }
                      },
                      {
+                         "RowIndex":  88,
                          "Action":  {
                                         "actionNumber":  121,
                                         "clock":  "PT03M08.00S",
@@ -1436,10 +1437,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  89
-                                    },
-                         "RowIndex":  88
+                                    }
                      },
                      {
+                         "RowIndex":  99,
                          "Action":  {
                                         "actionNumber":  138,
                                         "clock":  "PT01M36.00S",
@@ -1447,8 +1448,8 @@
                                         "teamId":  1610612738,
                                         "teamTricode":  "BOS",
                                         "personId":  1642864,
-                                        "playerName":  "GonzÃƒÆ’Ã‚Â¡lez",
-                                        "playerNameI":  "H. GonzÃƒÆ’Ã‚Â¡lez",
+                                        "playerName":  "González",
+                                        "playerNameI":  "H. González",
                                         "xLegacy":  0,
                                         "yLegacy":  0,
                                         "shotDistance":  0,
@@ -1464,10 +1465,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  100
-                                    },
-                         "RowIndex":  99
+                                    }
                      },
                      {
+                         "RowIndex":  126,
                          "Action":  {
                                         "actionNumber":  182,
                                         "clock":  "PT11M38.00S",
@@ -1492,10 +1493,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  127
-                                    },
-                         "RowIndex":  126
+                                    }
                      },
                      {
+                         "RowIndex":  132,
                          "Action":  {
                                         "actionNumber":  188,
                                         "clock":  "PT10M52.00S",
@@ -1503,8 +1504,8 @@
                                         "teamId":  1610612737,
                                         "teamTricode":  "ATL",
                                         "personId":  1630249,
-                                        "playerName":  "KrejÃƒâ€žÃ‚ÂÃƒÆ’Ã‚Â­",
-                                        "playerNameI":  "V. KrejÃƒâ€žÃ‚ÂÃƒÆ’Ã‚Â­",
+                                        "playerName":  "Krejčí",
+                                        "playerNameI":  "V. Krejčí",
                                         "xLegacy":  175,
                                         "yLegacy":  190,
                                         "shotDistance":  26,
@@ -1520,10 +1521,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  133
-                                    },
-                         "RowIndex":  132
+                                    }
                      },
                      {
+                         "RowIndex":  271,
                          "Action":  {
                                         "actionNumber":  381,
                                         "clock":  "PT07M05.00S",
@@ -1548,10 +1549,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  272
-                                    },
-                         "RowIndex":  271
+                                    }
                      },
                      {
+                         "RowIndex":  328,
                          "Action":  {
                                         "actionNumber":  459,
                                         "clock":  "PT02M13.00S",
@@ -1576,10 +1577,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  329
-                                    },
-                         "RowIndex":  328
+                                    }
                      },
                      {
+                         "RowIndex":  416,
                          "Action":  {
                                         "actionNumber":  582,
                                         "clock":  "PT05M31.00S",
@@ -1604,10 +1605,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  417
-                                    },
-                         "RowIndex":  416
+                                    }
                      },
                      {
+                         "RowIndex":  417,
                          "Action":  {
                                         "actionNumber":  583,
                                         "clock":  "PT05M31.00S",
@@ -1632,10 +1633,10 @@
                                         "videoAvailable":  0,
                                         "shotValue":  0,
                                         "actionId":  418
-                                    },
-                         "RowIndex":  417
+                                    }
                      },
                      {
+                         "RowIndex":  429,
                          "Action":  {
                                         "actionNumber":  599,
                                         "clock":  "PT04M23.00S",
@@ -1660,10 +1661,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  430
-                                    },
-                         "RowIndex":  429
+                                    }
                      },
                      {
+                         "RowIndex":  465,
                          "Action":  {
                                         "actionNumber":  648,
                                         "clock":  "PT00M43.70S",
@@ -1688,8 +1689,7 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  466
-                                    },
-                         "RowIndex":  465
+                                    }
                      }
                  ]
     },
@@ -1699,6 +1699,7 @@
         "GameId":  "0022501006",
         "Rows":  [
                      {
+                         "RowIndex":  1,
                          "Action":  {
                                         "actionNumber":  4,
                                         "clock":  "PT12M00.00S",
@@ -1723,10 +1724,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  2
-                                    },
-                         "RowIndex":  1
+                                    }
                      },
                      {
+                         "RowIndex":  3,
                          "Action":  {
                                         "actionNumber":  8,
                                         "clock":  "PT11M43.00S",
@@ -1751,10 +1752,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  4
-                                    },
-                         "RowIndex":  3
+                                    }
                      },
                      {
+                         "RowIndex":  4,
                          "Action":  {
                                         "actionNumber":  9,
                                         "clock":  "PT11M29.00S",
@@ -1779,10 +1780,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  5
-                                    },
-                         "RowIndex":  4
+                                    }
                      },
                      {
+                         "RowIndex":  6,
                          "Action":  {
                                         "actionNumber":  10,
                                         "clock":  "PT11M15.00S",
@@ -1807,10 +1808,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  7
-                                    },
-                         "RowIndex":  6
+                                    }
                      },
                      {
+                         "RowIndex":  8,
                          "Action":  {
                                         "actionNumber":  15,
                                         "clock":  "PT10M54.00S",
@@ -1835,10 +1836,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  9
-                                    },
-                         "RowIndex":  8
+                                    }
                      },
                      {
+                         "RowIndex":  13,
                          "Action":  {
                                         "actionNumber":  24,
                                         "clock":  "PT09M44.00S",
@@ -1863,10 +1864,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  14
-                                    },
-                         "RowIndex":  13
+                                    }
                      },
                      {
+                         "RowIndex":  15,
                          "Action":  {
                                         "actionNumber":  27,
                                         "clock":  "PT09M33.00S",
@@ -1891,10 +1892,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  16
-                                    },
-                         "RowIndex":  15
+                                    }
                      },
                      {
+                         "RowIndex":  16,
                          "Action":  {
                                         "actionNumber":  28,
                                         "clock":  "PT09M21.00S",
@@ -1919,10 +1920,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  17
-                                    },
-                         "RowIndex":  16
+                                    }
                      },
                      {
+                         "RowIndex":  25,
                          "Action":  {
                                         "actionNumber":  37,
                                         "clock":  "PT08M36.00S",
@@ -1947,10 +1948,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  26
-                                    },
-                         "RowIndex":  25
+                                    }
                      },
                      {
+                         "RowIndex":  31,
                          "Action":  {
                                         "actionNumber":  45,
                                         "clock":  "PT07M59.00S",
@@ -1975,10 +1976,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  32
-                                    },
-                         "RowIndex":  31
+                                    }
                      },
                      {
+                         "RowIndex":  54,
                          "Action":  {
                                         "actionNumber":  79,
                                         "clock":  "PT05M33.00S",
@@ -2003,10 +2004,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  55
-                                    },
-                         "RowIndex":  54
+                                    }
                      },
                      {
+                         "RowIndex":  61,
                          "Action":  {
                                         "actionNumber":  90,
                                         "clock":  "PT04M59.00S",
@@ -2031,10 +2032,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  62
-                                    },
-                         "RowIndex":  61
+                                    }
                      },
                      {
+                         "RowIndex":  68,
                          "Action":  {
                                         "actionNumber":  101,
                                         "clock":  "PT04M07.00S",
@@ -2059,10 +2060,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  69
-                                    },
-                         "RowIndex":  68
+                                    }
                      },
                      {
+                         "RowIndex":  69,
                          "Action":  {
                                         "actionNumber":  103,
                                         "clock":  "PT03M42.00S",
@@ -2087,10 +2088,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  70
-                                    },
-                         "RowIndex":  69
+                                    }
                      },
                      {
+                         "RowIndex":  72,
                          "Action":  {
                                         "actionNumber":  105,
                                         "clock":  "PT03M36.00S",
@@ -2115,10 +2116,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  73
-                                    },
-                         "RowIndex":  72
+                                    }
                      },
                      {
+                         "RowIndex":  88,
                          "Action":  {
                                         "actionNumber":  129,
                                         "clock":  "PT02M27.00S",
@@ -2143,10 +2144,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  89
-                                    },
-                         "RowIndex":  88
+                                    }
                      },
                      {
+                         "RowIndex":  116,
                          "Action":  {
                                         "actionNumber":  171,
                                         "clock":  "PT11M48.00S",
@@ -2171,10 +2172,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  117
-                                    },
-                         "RowIndex":  116
+                                    }
                      },
                      {
+                         "RowIndex":  117,
                          "Action":  {
                                         "actionNumber":  173,
                                         "clock":  "PT11M24.00S",
@@ -2199,10 +2200,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  118
-                                    },
-                         "RowIndex":  117
+                                    }
                      },
                      {
+                         "RowIndex":  147,
                          "Action":  {
                                         "actionNumber":  212,
                                         "clock":  "PT07M50.00S",
@@ -2227,10 +2228,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  148
-                                    },
-                         "RowIndex":  147
+                                    }
                      },
                      {
+                         "RowIndex":  373,
                          "Action":  {
                                         "actionNumber":  524,
                                         "clock":  "PT00M03.60S",
@@ -2255,10 +2256,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  374
-                                    },
-                         "RowIndex":  373
+                                    }
                      },
                      {
+                         "RowIndex":  374,
                          "Action":  {
                                         "actionNumber":  526,
                                         "clock":  "PT00M01.40S",
@@ -2283,10 +2284,10 @@
                                         "videoAvailable":  0,
                                         "shotValue":  0,
                                         "actionId":  375
-                                    },
-                         "RowIndex":  374
+                                    }
                      },
                      {
+                         "RowIndex":  375,
                          "Action":  {
                                         "actionNumber":  527,
                                         "clock":  "PT00M00.30S",
@@ -2311,10 +2312,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  376
-                                    },
-                         "RowIndex":  375
+                                    }
                      },
                      {
+                         "RowIndex":  463,
                          "Action":  {
                                         "actionNumber":  662,
                                         "clock":  "PT03M38.00S",
@@ -2339,10 +2340,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  464
-                                    },
-                         "RowIndex":  463
+                                    }
                      },
                      {
+                         "RowIndex":  488,
                          "Action":  {
                                         "actionNumber":  695,
                                         "clock":  "PT01M32.00S",
@@ -2367,10 +2368,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  489
-                                    },
-                         "RowIndex":  488
+                                    }
                      },
                      {
+                         "RowIndex":  494,
                          "Action":  {
                                         "actionNumber":  703,
                                         "clock":  "PT00M51.70S",
@@ -2395,10 +2396,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  495
-                                    },
-                         "RowIndex":  494
+                                    }
                      },
                      {
+                         "RowIndex":  497,
                          "Action":  {
                                         "actionNumber":  707,
                                         "clock":  "PT00M37.80S",
@@ -2423,8 +2424,7 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  498
-                                    },
-                         "RowIndex":  497
+                                    }
                      }
                  ]
     },
@@ -2434,6 +2434,7 @@
         "GameId":  "0022500304",
         "Rows":  [
                      {
+                         "RowIndex":  1,
                          "Action":  {
                                         "actionNumber":  4,
                                         "clock":  "PT12M00.00S",
@@ -2458,10 +2459,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  2
-                                    },
-                         "RowIndex":  1
+                                    }
                      },
                      {
+                         "RowIndex":  2,
                          "Action":  {
                                         "actionNumber":  7,
                                         "clock":  "PT11M40.00S",
@@ -2486,10 +2487,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  3
-                                    },
-                         "RowIndex":  2
+                                    }
                      },
                      {
+                         "RowIndex":  3,
                          "Action":  {
                                         "actionNumber":  8,
                                         "clock":  "PT11M35.00S",
@@ -2514,10 +2515,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  4
-                                    },
-                         "RowIndex":  3
+                                    }
                      },
                      {
+                         "RowIndex":  4,
                          "Action":  {
                                         "actionNumber":  9,
                                         "clock":  "PT11M25.00S",
@@ -2542,10 +2543,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  5
-                                    },
-                         "RowIndex":  4
+                                    }
                      },
                      {
+                         "RowIndex":  5,
                          "Action":  {
                                         "actionNumber":  10,
                                         "clock":  "PT11M13.00S",
@@ -2570,10 +2571,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  6
-                                    },
-                         "RowIndex":  5
+                                    }
                      },
                      {
+                         "RowIndex":  7,
                          "Action":  {
                                         "actionNumber":  13,
                                         "clock":  "PT10M57.00S",
@@ -2598,10 +2599,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  8
-                                    },
-                         "RowIndex":  7
+                                    }
                      },
                      {
+                         "RowIndex":  11,
                          "Action":  {
                                         "actionNumber":  17,
                                         "clock":  "PT10M25.00S",
@@ -2626,10 +2627,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  12
-                                    },
-                         "RowIndex":  11
+                                    }
                      },
                      {
+                         "RowIndex":  13,
                          "Action":  {
                                         "actionNumber":  19,
                                         "clock":  "PT10M20.00S",
@@ -2654,10 +2655,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  14
-                                    },
-                         "RowIndex":  13
+                                    }
                      },
                      {
+                         "RowIndex":  29,
                          "Action":  {
                                         "actionNumber":  40,
                                         "clock":  "PT08M15.00S",
@@ -2682,10 +2683,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  30
-                                    },
-                         "RowIndex":  29
+                                    }
                      },
                      {
+                         "RowIndex":  31,
                          "Action":  {
                                         "actionNumber":  42,
                                         "clock":  "PT08M05.00S",
@@ -2710,10 +2711,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  32
-                                    },
-                         "RowIndex":  31
+                                    }
                      },
                      {
+                         "RowIndex":  64,
                          "Action":  {
                                         "actionNumber":  82,
                                         "clock":  "PT05M08.00S",
@@ -2738,10 +2739,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  65
-                                    },
-                         "RowIndex":  64
+                                    }
                      },
                      {
+                         "RowIndex":  77,
                          "Action":  {
                                         "actionNumber":  102,
                                         "clock":  "PT04M11.00S",
@@ -2766,10 +2767,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  78
-                                    },
-                         "RowIndex":  77
+                                    }
                      },
                      {
+                         "RowIndex":  81,
                          "Action":  {
                                         "actionNumber":  107,
                                         "clock":  "PT03M33.00S",
@@ -2794,10 +2795,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  82
-                                    },
-                         "RowIndex":  81
+                                    }
                      },
                      {
+                         "RowIndex":  85,
                          "Action":  {
                                         "actionNumber":  112,
                                         "clock":  "PT03M01.00S",
@@ -2822,10 +2823,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  86
-                                    },
-                         "RowIndex":  85
+                                    }
                      },
                      {
+                         "RowIndex":  95,
                          "Action":  {
                                         "actionNumber":  129,
                                         "clock":  "PT01M51.00S",
@@ -2850,10 +2851,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  96
-                                    },
-                         "RowIndex":  95
+                                    }
                      },
                      {
+                         "RowIndex":  104,
                          "Action":  {
                                         "actionNumber":  141,
                                         "clock":  "PT00M51.60S",
@@ -2878,10 +2879,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  105
-                                    },
-                         "RowIndex":  104
+                                    }
                      },
                      {
+                         "RowIndex":  106,
                          "Action":  {
                                         "actionNumber":  143,
                                         "clock":  "PT00M41.90S",
@@ -2889,8 +2890,8 @@
                                         "teamId":  1610612737,
                                         "teamTricode":  "ATL",
                                         "personId":  1630249,
-                                        "playerName":  "KrejÃƒâ€žÃ‚ÂÃƒÆ’Ã‚Â­",
-                                        "playerNameI":  "V. KrejÃƒâ€žÃ‚ÂÃƒÆ’Ã‚Â­",
+                                        "playerName":  "Krejčí",
+                                        "playerNameI":  "V. Krejčí",
                                         "xLegacy":  205,
                                         "yLegacy":  139,
                                         "shotDistance":  25,
@@ -2906,10 +2907,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  107
-                                    },
-                         "RowIndex":  106
+                                    }
                      },
                      {
+                         "RowIndex":  112,
                          "Action":  {
                                         "actionNumber":  151,
                                         "clock":  "PT00M29.20S",
@@ -2934,10 +2935,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  113
-                                    },
-                         "RowIndex":  112
+                                    }
                      },
                      {
+                         "RowIndex":  189,
                          "Action":  {
                                         "actionNumber":  264,
                                         "clock":  "PT04M30.00S",
@@ -2962,10 +2963,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  190
-                                    },
-                         "RowIndex":  189
+                                    }
                      },
                      {
+                         "RowIndex":  595,
                          "Action":  {
                                         "actionNumber":  825,
                                         "clock":  "PT05M00.00S",
@@ -2990,10 +2991,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  596
-                                    },
-                         "RowIndex":  595
+                                    }
                      },
                      {
+                         "RowIndex":  631,
                          "Action":  {
                                         "actionNumber":  874,
                                         "clock":  "PT00M59.60S",
@@ -3018,10 +3019,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  632
-                                    },
-                         "RowIndex":  631
+                                    }
                      },
                      {
+                         "RowIndex":  632,
                          "Action":  {
                                         "actionNumber":  874,
                                         "clock":  "PT00M59.60S",
@@ -3046,10 +3047,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  633
-                                    },
-                         "RowIndex":  632
+                                    }
                      },
                      {
+                         "RowIndex":  633,
                          "Action":  {
                                         "actionNumber":  876,
                                         "clock":  "PT00M59.60S",
@@ -3074,10 +3075,10 @@
                                         "videoAvailable":  0,
                                         "shotValue":  0,
                                         "actionId":  634
-                                    },
-                         "RowIndex":  633
+                                    }
                      },
                      {
+                         "RowIndex":  634,
                          "Action":  {
                                         "actionNumber":  878,
                                         "clock":  "PT00M59.60S",
@@ -3102,10 +3103,10 @@
                                         "videoAvailable":  0,
                                         "shotValue":  0,
                                         "actionId":  635
-                                    },
-                         "RowIndex":  634
+                                    }
                      },
                      {
+                         "RowIndex":  650,
                          "Action":  {
                                         "actionNumber":  897,
                                         "clock":  "PT00M00.00S",
@@ -3130,8 +3131,7 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  651
-                                    },
-                         "RowIndex":  650
+                                    }
                      }
                  ]
     },
@@ -3141,6 +3141,7 @@
         "GameId":  "0022500173",
         "Rows":  [
                      {
+                         "RowIndex":  1,
                          "Action":  {
                                         "actionNumber":  4,
                                         "clock":  "PT12M00.00S",
@@ -3165,10 +3166,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  2
-                                    },
-                         "RowIndex":  1
+                                    }
                      },
                      {
+                         "RowIndex":  2,
                          "Action":  {
                                         "actionNumber":  8,
                                         "clock":  "PT11M36.00S",
@@ -3193,10 +3194,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  3
-                                    },
-                         "RowIndex":  2
+                                    }
                      },
                      {
+                         "RowIndex":  3,
                          "Action":  {
                                         "actionNumber":  9,
                                         "clock":  "PT11M23.00S",
@@ -3221,10 +3222,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  4
-                                    },
-                         "RowIndex":  3
+                                    }
                      },
                      {
+                         "RowIndex":  5,
                          "Action":  {
                                         "actionNumber":  11,
                                         "clock":  "PT11M07.00S",
@@ -3249,10 +3250,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  6
-                                    },
-                         "RowIndex":  5
+                                    }
                      },
                      {
+                         "RowIndex":  6,
                          "Action":  {
                                         "actionNumber":  12,
                                         "clock":  "PT11M05.00S",
@@ -3277,10 +3278,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  7
-                                    },
-                         "RowIndex":  6
+                                    }
                      },
                      {
+                         "RowIndex":  8,
                          "Action":  {
                                         "actionNumber":  15,
                                         "clock":  "PT10M32.00S",
@@ -3305,10 +3306,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  9
-                                    },
-                         "RowIndex":  8
+                                    }
                      },
                      {
+                         "RowIndex":  13,
                          "Action":  {
                                         "actionNumber":  21,
                                         "clock":  "PT10M14.00S",
@@ -3333,10 +3334,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  14
-                                    },
-                         "RowIndex":  13
+                                    }
                      },
                      {
+                         "RowIndex":  22,
                          "Action":  {
                                         "actionNumber":  28,
                                         "clock":  "PT09M42.00S",
@@ -3361,10 +3362,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  23
-                                    },
-                         "RowIndex":  22
+                                    }
                      },
                      {
+                         "RowIndex":  28,
                          "Action":  {
                                         "actionNumber":  39,
                                         "clock":  "PT08M53.00S",
@@ -3389,10 +3390,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  29
-                                    },
-                         "RowIndex":  28
+                                    }
                      },
                      {
+                         "RowIndex":  36,
                          "Action":  {
                                         "actionNumber":  51,
                                         "clock":  "PT07M40.00S",
@@ -3417,10 +3418,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  37
-                                    },
-                         "RowIndex":  36
+                                    }
                      },
                      {
+                         "RowIndex":  59,
                          "Action":  {
                                         "actionNumber":  82,
                                         "clock":  "PT05M55.00S",
@@ -3445,10 +3446,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  60
-                                    },
-                         "RowIndex":  59
+                                    }
                      },
                      {
+                         "RowIndex":  66,
                          "Action":  {
                                         "actionNumber":  93,
                                         "clock":  "PT05M12.00S",
@@ -3473,10 +3474,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  67
-                                    },
-                         "RowIndex":  66
+                                    }
                      },
                      {
+                         "RowIndex":  82,
                          "Action":  {
                                         "actionNumber":  118,
                                         "clock":  "PT03M50.00S",
@@ -3501,10 +3502,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  83
-                                    },
-                         "RowIndex":  82
+                                    }
                      },
                      {
+                         "RowIndex":  89,
                          "Action":  {
                                         "actionNumber":  131,
                                         "clock":  "PT02M51.00S",
@@ -3529,10 +3530,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  90
-                                    },
-                         "RowIndex":  89
+                                    }
                      },
                      {
+                         "RowIndex":  90,
                          "Action":  {
                                         "actionNumber":  134,
                                         "clock":  "PT02M37.00S",
@@ -3557,10 +3558,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  91
-                                    },
-                         "RowIndex":  90
+                                    }
                      },
                      {
+                         "RowIndex":  93,
                          "Action":  {
                                         "actionNumber":  255,
                                         "clock":  "PT02M24.00S",
@@ -3585,10 +3586,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  94
-                                    },
-                         "RowIndex":  93
+                                    }
                      },
                      {
+                         "RowIndex":  99,
                          "Action":  {
                                         "actionNumber":  142,
                                         "clock":  "PT01M58.00S",
@@ -3596,8 +3597,8 @@
                                         "teamId":  1610612751,
                                         "teamTricode":  "BKN",
                                         "personId":  1642856,
-                                        "playerName":  "DÃƒÆ’Ã‚Â«min",
-                                        "playerNameI":  "E. DÃƒÆ’Ã‚Â«min",
+                                        "playerName":  "Dëmin",
+                                        "playerNameI":  "E. Dëmin",
                                         "xLegacy":  62,
                                         "yLegacy":  260,
                                         "shotDistance":  27,
@@ -3613,10 +3614,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  100
-                                    },
-                         "RowIndex":  99
+                                    }
                      },
                      {
+                         "RowIndex":  118,
                          "Action":  {
                                         "actionNumber":  163,
                                         "clock":  "PT00M06.20S",
@@ -3641,10 +3642,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  119
-                                    },
-                         "RowIndex":  118
+                                    }
                      },
                      {
+                         "RowIndex":  120,
                          "Action":  {
                                         "actionNumber":  165,
                                         "clock":  "PT00M06.20S",
@@ -3669,10 +3670,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  121
-                                    },
-                         "RowIndex":  120
+                                    }
                      },
                      {
+                         "RowIndex":  130,
                          "Action":  {
                                         "actionNumber":  187,
                                         "clock":  "PT11M27.00S",
@@ -3697,10 +3698,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  131
-                                    },
-                         "RowIndex":  130
+                                    }
                      },
                      {
+                         "RowIndex":  148,
                          "Action":  {
                                         "actionNumber":  212,
                                         "clock":  "PT10M24.00S",
@@ -3725,10 +3726,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  149
-                                    },
-                         "RowIndex":  148
+                                    }
                      },
                      {
+                         "RowIndex":  267,
                          "Action":  {
                                         "actionNumber":  390,
                                         "clock":  "PT11M52.00S",
@@ -3753,10 +3754,10 @@
                                         "videoAvailable":  0,
                                         "shotValue":  0,
                                         "actionId":  268
-                                    },
-                         "RowIndex":  267
+                                    }
                      },
                      {
+                         "RowIndex":  268,
                          "Action":  {
                                         "actionNumber":  391,
                                         "clock":  "PT11M52.00S",
@@ -3781,10 +3782,10 @@
                                         "videoAvailable":  0,
                                         "shotValue":  0,
                                         "actionId":  269
-                                    },
-                         "RowIndex":  268
+                                    }
                      },
                      {
+                         "RowIndex":  269,
                          "Action":  {
                                         "actionNumber":  392,
                                         "clock":  "PT11M52.00S",
@@ -3809,8 +3810,7 @@
                                         "videoAvailable":  0,
                                         "shotValue":  0,
                                         "actionId":  270
-                                    },
-                         "RowIndex":  269
+                                    }
                      }
                  ]
     },
@@ -3820,6 +3820,7 @@
         "GameId":  "0022501045",
         "Rows":  [
                      {
+                         "RowIndex":  1,
                          "Action":  {
                                         "actionNumber":  4,
                                         "clock":  "PT12M00.00S",
@@ -3844,10 +3845,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  2
-                                    },
-                         "RowIndex":  1
+                                    }
                      },
                      {
+                         "RowIndex":  2,
                          "Action":  {
                                         "actionNumber":  7,
                                         "clock":  "PT11M36.00S",
@@ -3872,10 +3873,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  3
-                                    },
-                         "RowIndex":  2
+                                    }
                      },
                      {
+                         "RowIndex":  3,
                          "Action":  {
                                         "actionNumber":  8,
                                         "clock":  "PT11M24.00S",
@@ -3900,10 +3901,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  4
-                                    },
-                         "RowIndex":  3
+                                    }
                      },
                      {
+                         "RowIndex":  11,
                          "Action":  {
                                         "actionNumber":  16,
                                         "clock":  "PT11M07.00S",
@@ -3928,10 +3929,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  12
-                                    },
-                         "RowIndex":  11
+                                    }
                      },
                      {
+                         "RowIndex":  12,
                          "Action":  {
                                         "actionNumber":  18,
                                         "clock":  "PT10M56.00S",
@@ -3956,10 +3957,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  13
-                                    },
-                         "RowIndex":  12
+                                    }
                      },
                      {
+                         "RowIndex":  13,
                          "Action":  {
                                         "actionNumber":  19,
                                         "clock":  "PT10M52.00S",
@@ -3984,10 +3985,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  14
-                                    },
-                         "RowIndex":  13
+                                    }
                      },
                      {
+                         "RowIndex":  14,
                          "Action":  {
                                         "actionNumber":  20,
                                         "clock":  "PT10M48.00S",
@@ -4012,10 +4013,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  15
-                                    },
-                         "RowIndex":  14
+                                    }
                      },
                      {
+                         "RowIndex":  21,
                          "Action":  {
                                         "actionNumber":  33,
                                         "clock":  "PT10M19.00S",
@@ -4040,10 +4041,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  22
-                                    },
-                         "RowIndex":  21
+                                    }
                      },
                      {
+                         "RowIndex":  39,
                          "Action":  {
                                         "actionNumber":  55,
                                         "clock":  "PT08M57.00S",
@@ -4068,10 +4069,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  40
-                                    },
-                         "RowIndex":  39
+                                    }
                      },
                      {
+                         "RowIndex":  56,
                          "Action":  {
                                         "actionNumber":  80,
                                         "clock":  "PT06M55.00S",
@@ -4096,10 +4097,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  57
-                                    },
-                         "RowIndex":  56
+                                    }
                      },
                      {
+                         "RowIndex":  72,
                          "Action":  {
                                         "actionNumber":  102,
                                         "clock":  "PT05M28.00S",
@@ -4124,10 +4125,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  73
-                                    },
-                         "RowIndex":  72
+                                    }
                      },
                      {
+                         "RowIndex":  76,
                          "Action":  {
                                         "actionNumber":  106,
                                         "clock":  "PT05M12.00S",
@@ -4152,10 +4153,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  77
-                                    },
-                         "RowIndex":  76
+                                    }
                      },
                      {
+                         "RowIndex":  77,
                          "Action":  {
                                         "actionNumber":  108,
                                         "clock":  "PT04M49.00S",
@@ -4180,10 +4181,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  78
-                                    },
-                         "RowIndex":  77
+                                    }
                      },
                      {
+                         "RowIndex":  84,
                          "Action":  {
                                         "actionNumber":  120,
                                         "clock":  "PT04M29.00S",
@@ -4208,10 +4209,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  85
-                                    },
-                         "RowIndex":  84
+                                    }
                      },
                      {
+                         "RowIndex":  87,
                          "Action":  {
                                         "actionNumber":  123,
                                         "clock":  "PT04M25.00S",
@@ -4236,10 +4237,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  88
-                                    },
-                         "RowIndex":  87
+                                    }
                      },
                      {
+                         "RowIndex":  97,
                          "Action":  {
                                         "actionNumber":  136,
                                         "clock":  "PT03M43.00S",
@@ -4264,10 +4265,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  98
-                                    },
-                         "RowIndex":  97
+                                    }
                      },
                      {
+                         "RowIndex":  103,
                          "Action":  {
                                         "actionNumber":  145,
                                         "clock":  "PT02M58.00S",
@@ -4292,10 +4293,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  104
-                                    },
-                         "RowIndex":  103
+                                    }
                      },
                      {
+                         "RowIndex":  137,
                          "Action":  {
                                         "actionNumber":  207,
                                         "clock":  "PT10M43.00S",
@@ -4320,10 +4321,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  138
-                                    },
-                         "RowIndex":  137
+                                    }
                      },
                      {
+                         "RowIndex":  215,
                          "Action":  {
                                         "actionNumber":  309,
                                         "clock":  "PT05M30.00S",
@@ -4348,10 +4349,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  216
-                                    },
-                         "RowIndex":  215
+                                    }
                      },
                      {
+                         "RowIndex":  330,
                          "Action":  {
                                         "actionNumber":  475,
                                         "clock":  "PT08M13.00S",
@@ -4376,10 +4377,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  331
-                                    },
-                         "RowIndex":  330
+                                    }
                      },
                      {
+                         "RowIndex":  331,
                          "Action":  {
                                         "actionNumber":  479,
                                         "clock":  "PT08M07.00S",
@@ -4404,10 +4405,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  332
-                                    },
-                         "RowIndex":  331
+                                    }
                      },
                      {
+                         "RowIndex":  403,
                          "Action":  {
                                         "actionNumber":  574,
                                         "clock":  "PT01M38.00S",
@@ -4432,10 +4433,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  404
-                                    },
-                         "RowIndex":  403
+                                    }
                      },
                      {
+                         "RowIndex":  474,
                          "Action":  {
                                         "actionNumber":  672,
                                         "clock":  "PT06M54.00S",
@@ -4460,10 +4461,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  475
-                                    },
-                         "RowIndex":  474
+                                    }
                      },
                      {
+                         "RowIndex":  477,
                          "Action":  {
                                         "actionNumber":  675,
                                         "clock":  "PT06M46.00S",
@@ -4488,8 +4489,7 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  478
-                                    },
-                         "RowIndex":  477
+                                    }
                      }
                  ]
     },
@@ -4499,6 +4499,7 @@
         "GameId":  "0022500732",
         "Rows":  [
                      {
+                         "RowIndex":  1,
                          "Action":  {
                                         "actionNumber":  4,
                                         "clock":  "PT12M00.00S",
@@ -4523,10 +4524,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  2
-                                    },
-                         "RowIndex":  1
+                                    }
                      },
                      {
+                         "RowIndex":  2,
                          "Action":  {
                                         "actionNumber":  7,
                                         "clock":  "PT11M37.00S",
@@ -4551,10 +4552,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  3
-                                    },
-                         "RowIndex":  2
+                                    }
                      },
                      {
+                         "RowIndex":  3,
                          "Action":  {
                                         "actionNumber":  9,
                                         "clock":  "PT11M18.00S",
@@ -4579,10 +4580,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  4
-                                    },
-                         "RowIndex":  3
+                                    }
                      },
                      {
+                         "RowIndex":  4,
                          "Action":  {
                                         "actionNumber":  10,
                                         "clock":  "PT11M14.00S",
@@ -4607,10 +4608,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  5
-                                    },
-                         "RowIndex":  4
+                                    }
                      },
                      {
+                         "RowIndex":  6,
                          "Action":  {
                                         "actionNumber":  13,
                                         "clock":  "PT11M09.00S",
@@ -4635,10 +4636,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  7
-                                    },
-                         "RowIndex":  6
+                                    }
                      },
                      {
+                         "RowIndex":  10,
                          "Action":  {
                                         "actionNumber":  17,
                                         "clock":  "PT10M41.00S",
@@ -4663,10 +4664,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  11
-                                    },
-                         "RowIndex":  10
+                                    }
                      },
                      {
+                         "RowIndex":  11,
                          "Action":  {
                                         "actionNumber":  19,
                                         "clock":  "PT10M25.00S",
@@ -4691,10 +4692,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  12
-                                    },
-                         "RowIndex":  11
+                                    }
                      },
                      {
+                         "RowIndex":  17,
                          "Action":  {
                                         "actionNumber":  28,
                                         "clock":  "PT09M29.00S",
@@ -4719,10 +4720,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  18
-                                    },
-                         "RowIndex":  17
+                                    }
                      },
                      {
+                         "RowIndex":  19,
                          "Action":  {
                                         "actionNumber":  30,
                                         "clock":  "PT09M13.00S",
@@ -4747,10 +4748,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  20
-                                    },
-                         "RowIndex":  19
+                                    }
                      },
                      {
+                         "RowIndex":  20,
                          "Action":  {
                                         "actionNumber":  31,
                                         "clock":  "PT09M09.00S",
@@ -4775,10 +4776,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  21
-                                    },
-                         "RowIndex":  20
+                                    }
                      },
                      {
+                         "RowIndex":  44,
                          "Action":  {
                                         "actionNumber":  63,
                                         "clock":  "PT06M47.00S",
@@ -4786,8 +4787,8 @@
                                         "teamId":  1610612739,
                                         "teamTricode":  "CLE",
                                         "personId":  203471,
-                                        "playerName":  "SchrÃƒÂ¶der",
-                                        "playerNameI":  "D. SchrÃƒÂ¶der",
+                                        "playerName":  "Schröder",
+                                        "playerNameI":  "D. Schröder",
                                         "xLegacy":  15,
                                         "yLegacy":  2,
                                         "shotDistance":  2,
@@ -4803,10 +4804,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  45
-                                    },
-                         "RowIndex":  44
+                                    }
                      },
                      {
+                         "RowIndex":  55,
                          "Action":  {
                                         "actionNumber":  77,
                                         "clock":  "PT05M31.00S",
@@ -4831,10 +4832,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  56
-                                    },
-                         "RowIndex":  55
+                                    }
                      },
                      {
+                         "RowIndex":  73,
                          "Action":  {
                                         "actionNumber":  104,
                                         "clock":  "PT04M02.00S",
@@ -4859,10 +4860,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  74
-                                    },
-                         "RowIndex":  73
+                                    }
                      },
                      {
+                         "RowIndex":  78,
                          "Action":  {
                                         "actionNumber":  109,
                                         "clock":  "PT03M14.00S",
@@ -4870,8 +4871,8 @@
                                         "teamId":  1610612746,
                                         "teamTricode":  "LAC",
                                         "personId":  203992,
-                                        "playerName":  "BogdanoviÃ„â€¡",
-                                        "playerNameI":  "B. BogdanoviÃ„â€¡",
+                                        "playerName":  "Bogdanović",
+                                        "playerNameI":  "B. Bogdanović",
                                         "xLegacy":  -150,
                                         "yLegacy":  236,
                                         "shotDistance":  28,
@@ -4887,10 +4888,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  79
-                                    },
-                         "RowIndex":  78
+                                    }
                      },
                      {
+                         "RowIndex":  88,
                          "Action":  {
                                         "actionNumber":  123,
                                         "clock":  "PT02M37.00S",
@@ -4898,8 +4899,8 @@
                                         "teamId":  1610612746,
                                         "teamTricode":  "LAC",
                                         "personId":  1642949,
-                                        "playerName":  "NiederhÃƒÂ¤user",
-                                        "playerNameI":  "Y. NiederhÃƒÂ¤user",
+                                        "playerName":  "Niederhäuser",
+                                        "playerNameI":  "Y. Niederhäuser",
                                         "xLegacy":  0,
                                         "yLegacy":  0,
                                         "shotDistance":  0,
@@ -4915,10 +4916,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  89
-                                    },
-                         "RowIndex":  88
+                                    }
                      },
                      {
+                         "RowIndex":  89,
                          "Action":  {
                                         "actionNumber":  124,
                                         "clock":  "PT02M29.00S",
@@ -4943,10 +4944,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  90
-                                    },
-                         "RowIndex":  89
+                                    }
                      },
                      {
+                         "RowIndex":  114,
                          "Action":  {
                                         "actionNumber":  152,
                                         "clock":  "PT00M03.00S",
@@ -4971,10 +4972,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  115
-                                    },
-                         "RowIndex":  114
+                                    }
                      },
                      {
+                         "RowIndex":  117,
                          "Action":  {
                                         "actionNumber":  157,
                                         "clock":  "PT11M50.00S",
@@ -4999,10 +5000,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  118
-                                    },
-                         "RowIndex":  117
+                                    }
                      },
                      {
+                         "RowIndex":  122,
                          "Action":  {
                                         "actionNumber":  164,
                                         "clock":  "PT11M25.00S",
@@ -5027,10 +5028,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  123
-                                    },
-                         "RowIndex":  122
+                                    }
                      },
                      {
+                         "RowIndex":  123,
                          "Action":  {
                                         "actionNumber":  164,
                                         "clock":  "PT11M25.00S",
@@ -5055,10 +5056,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  124
-                                    },
-                         "RowIndex":  123
+                                    }
                      },
                      {
+                         "RowIndex":  274,
                          "Action":  {
                                         "actionNumber":  371,
                                         "clock":  "PT07M12.00S",
@@ -5083,10 +5084,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  275
-                                    },
-                         "RowIndex":  274
+                                    }
                      },
                      {
+                         "RowIndex":  275,
                          "Action":  {
                                         "actionNumber":  372,
                                         "clock":  "PT07M12.00S",
@@ -5111,10 +5112,10 @@
                                         "videoAvailable":  0,
                                         "shotValue":  0,
                                         "actionId":  276
-                                    },
-                         "RowIndex":  275
+                                    }
                      },
                      {
+                         "RowIndex":  276,
                          "Action":  {
                                         "actionNumber":  373,
                                         "clock":  "PT07M12.00S",
@@ -5139,10 +5140,10 @@
                                         "videoAvailable":  0,
                                         "shotValue":  0,
                                         "actionId":  277
-                                    },
-                         "RowIndex":  276
+                                    }
                      },
                      {
+                         "RowIndex":  277,
                          "Action":  {
                                         "actionNumber":  375,
                                         "clock":  "PT07M12.00S",
@@ -5167,10 +5168,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  278
-                                    },
-                         "RowIndex":  277
+                                    }
                      },
                      {
+                         "RowIndex":  278,
                          "Action":  {
                                         "actionNumber":  450,
                                         "clock":  "PT07M12.00S",
@@ -5195,10 +5196,10 @@
                                         "videoAvailable":  0,
                                         "shotValue":  0,
                                         "actionId":  279
-                                    },
-                         "RowIndex":  278
+                                    }
                      },
                      {
+                         "RowIndex":  279,
                          "Action":  {
                                         "actionNumber":  377,
                                         "clock":  "PT07M00.00S",
@@ -5223,10 +5224,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  280
-                                    },
-                         "RowIndex":  279
+                                    }
                      },
                      {
+                         "RowIndex":  356,
                          "Action":  {
                                         "actionNumber":  492,
                                         "clock":  "PT11M25.00S",
@@ -5251,10 +5252,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  357
-                                    },
-                         "RowIndex":  356
+                                    }
                      },
                      {
+                         "RowIndex":  381,
                          "Action":  {
                                         "actionNumber":  523,
                                         "clock":  "PT08M07.00S",
@@ -5279,10 +5280,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  382
-                                    },
-                         "RowIndex":  381
+                                    }
                      },
                      {
+                         "RowIndex":  404,
                          "Action":  {
                                         "actionNumber":  557,
                                         "clock":  "PT06M14.00S",
@@ -5307,10 +5308,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  2,
                                         "actionId":  405
-                                    },
-                         "RowIndex":  404
+                                    }
                      },
                      {
+                         "RowIndex":  405,
                          "Action":  {
                                         "actionNumber":  559,
                                         "clock":  "PT06M00.00S",
@@ -5335,10 +5336,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  406
-                                    },
-                         "RowIndex":  405
+                                    }
                      },
                      {
+                         "RowIndex":  409,
                          "Action":  {
                                         "actionNumber":  564,
                                         "clock":  "PT05M06.00S",
@@ -5363,10 +5364,10 @@
                                         "videoAvailable":  1,
                                         "shotValue":  3,
                                         "actionId":  410
-                                    },
-                         "RowIndex":  409
+                                    }
                      },
                      {
+                         "RowIndex":  413,
                          "Action":  {
                                         "actionNumber":  569,
                                         "clock":  "PT04M26.00S",
@@ -5391,8 +5392,7 @@
                                         "videoAvailable":  1,
                                         "shotValue":  0,
                                         "actionId":  414
-                                    },
-                         "RowIndex":  413
+                                    }
                      }
                  ]
     }
