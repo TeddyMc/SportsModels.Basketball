@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <PackageReference Include="Autofac" Version="8.2.0" />
+    <ProjectReference Include="../SportsModels.Data.Basketball/SportsModels.Data.Basketball.csproj" />
   </ItemGroup>
 </Project>

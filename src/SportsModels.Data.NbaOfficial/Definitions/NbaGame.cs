@@ -4,6 +4,9 @@ namespace SportsModels.Data.NbaOfficial.Definitions;
 
 internal sealed record NbaGame(string GameId, DateOnly Date, string AwayTeam, string HomeTeam)
 {
+    public int? PeriodCount { get; init; }
+    public string? HomeTeamSourceId { get; init; }
+    public string? AwayTeamSourceId { get; init; }
     public string FileName
     {
         get
