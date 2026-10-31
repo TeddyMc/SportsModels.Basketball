@@ -292,6 +292,37 @@ public sealed class ConversionTests
         return JsonSerializer.SerializeToUtf8Bytes(new { game = new { gameId, actions = sample.GetProperty("Rows").EnumerateArray().Select(r => r.GetProperty("Action")).ToArray() } });
     }
 
+    [TestCase("Jal. Williams","Jalen","Jaylin","Williams",true)]
+    [TestCase("Jay. Williams","Jaylin","Jalen","Williams",true)]
+    [TestCase("St. Curry","Stephen","Seth","Curry",true)]
+    [TestCase("J. Williams","Jalen","Jaylin","Williams",false)]
+    [TestCase("S. Curry","Stephen","Seth","Curry",false)]
+    [TestCase("Jo. Williams","Jalen","Jaylin","Williams",false)]
+    public void LiteralGivenNamePrefixesResolveOnlyUniqueCompatibleGamePlayers(string description,string first,string other,string surname,bool resolved)
+    {
+        object Player(int id,string given,string family) => new {personId=id,firstName=given,familyName=family,nameI=given[..1]+". "+family,
+            position="",statistics=new {minutes="00:00"}};
+        var references=new ReferenceBundle();
+        references.Boxes.Add((0,"period",JsonSerializer.SerializeToElement(new {gameId="0022500001",
+            homeTeam=new {teamId=10,players=new[]{Player(101,"Outgoing","Player"),Player(102,first,surname),Player(103,other,surname)},statistics=new {minutes="240:00"}},
+            awayTeam=new {teamId=20,players=new[]{Player(201,"Opponent","Player")},statistics=new {minutes="240:00"}}})));
+        var source=JsonSerializer.SerializeToUtf8Bytes(new {game=new {gameId="0022500001",actions=new[]{new {period=1,clock="PT05M00.00S",
+            teamId=10,personId=101,location="h",actionType="Substitution",description="SUB: "+description+" FOR Player",actionNumber=10,actionId=1}}}});
+        var alternateRows=new[]{
+            JsonSerializer.SerializeToElement(new {period=1,clock="PT05M00.00S",teamId=10,personId=101,actionType="substitution",subType="out",actionNumber=10}),
+            JsonSerializer.SerializeToElement(new {period=1,clock="PT05M00.00S",teamId=10,personId=102,actionType="substitution",subType="in",actionNumber=11}),
+            JsonSerializer.SerializeToElement(new {period=1,clock="PT05M00.00S",teamId=10,personId=103,actionType="substitution",subType="in",actionNumber=12})};
+        references.AlternatePlayByPlay.Add(new("prefix-fixture",alternateRows));
+        var converted=Convert(source,references);
+        Assert.That(converted.Game.Events.OfType<SubstitutionEvent>().Count(),Is.EqualTo(resolved?1:0));
+        if(resolved)
+        {
+            var expected=registry.Resolve("Player","NbaOfficial","102","Lookup").EntityId;
+            Assert.That(converted.Game.Events.OfType<SubstitutionEvent>().Single().PlayerInId,Is.EqualTo(expected));
+            Assert.That(converted.Evidence.Single(e=>e.FieldName=="PlayerInId").Kind,Is.EqualTo(BasketballEvidenceKind.Linked));
+        }
+    }
+
     [TestCase("liveboxscore", """{"game":{"gameId":"0022501122","gameStatus":3}}""")]
     [TestCase("liveplaybyplay", """{"game":{"gameId":"0022501122","actions":[]}}""")]
     public void UnusableOptionalReferenceDoesNotBreakOtherwiseConvertibleGame(string endpoint, string json)

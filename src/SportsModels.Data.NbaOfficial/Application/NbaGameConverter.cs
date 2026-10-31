@@ -603,8 +603,7 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
 
     private Person? ByName(string name, string? team, int row)
     {
-        var normalized = SourceJson.Normalize(name);
-        var matches = players.Values.Where(p => (team is null || p.Team == team) && p.Aliases.Contains(normalized)).ToArray();
+        var matches = players.Values.Where(p => (team is null || p.Team == team) && MatchesName(p,name)).ToArray();
         if (matches.Length == 1) { return matches[0]; }
         Add("IDENTITY.NAME", CheckStatus.NotAssessable, row, $"Name '{name}' has {matches.Length} compatible game-roster matches; not guessed.");
         return null;
@@ -620,14 +619,14 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
             && x.Row.Text("actionNumber") == source.Text("actionNumber")).ToArray();
         if (outgoing.Length != 1) { return null; }
         var incoming = matching.Where(x => x.Row.Text("subType") == "in"
-            && players.TryGetValue(x.Row.Key("personId"), out var p) && p.Aliases.Contains(SourceJson.Normalize(name))).ToArray();
+            && players.TryGetValue(x.Row.Key("personId"), out var p) && MatchesName(p,name)).ToArray();
         if (incoming.Length != 1) { return null; }
         var person = players[incoming[0].Row.Key("personId")];
         BasketballSourceRowReference Reference((JsonElement Row, int Index) item) =>
             new(BasketballDataSource.NbaOfficial, alternate.SnapshotId, item.Index, null, item.Row.Text("actionNumber"));
         evidence.Add(new(eventId, "PlayerInId", BasketballEvidenceKind.Linked,
             [Row(index), Reference(outgoing[0]), Reference(incoming[0])],
-            "Matched official alternate outgoing action number, actor, team, period and clock; unique explicit incoming ID matching the described game-roster alias. No simultaneous pairing is guessed."));
+            "Matched official alternate outgoing action number, actor, team, period and clock; unique explicit incoming ID matching the described game-roster name, including literal given-name prefixes with exact surnames. No simultaneous pairing is guessed."));
         return person;
     }
 
@@ -667,6 +666,20 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
         primary.Key("personId") == alternateRow.Key("personId") && primary.Key("teamId") == alternateRow.Key("teamId")
         && primary.Number("period") == alternateRow.Number("period") && primary.Text("clock") == alternateRow.Text("clock")
         && primary.Text("actionNumber") == alternateRow.Text("actionNumber");
+
+    private static bool MatchesName(Person person, string described)
+    {
+        if(person.Aliases.Contains(SourceJson.Normalize(described))) { return true; }
+        // Literal written prefixes distinguish Jal./Jay. Williams and St./Se. Curry.
+        // No edit distance, invented nickname, abbreviated surname or arbitrary same-clock pairing.
+        var match=Regex.Match(described,@"^([\p{L}]+)\.\s+(.+)$");
+        if(!match.Success) { return false; }
+        var prefix=SourceJson.Normalize(match.Groups[1].Value);
+        var surname=SourceJson.Normalize(match.Groups[2].Value);
+        var full=SourceJson.Normalize(person.Name);
+        if(!person.Aliases.Contains(surname) || !full.EndsWith(surname,StringComparison.Ordinal) || full.Length<=surname.Length) { return false; }
+        return full[..^surname.Length].StartsWith(prefix,StringComparison.Ordinal);
+    }
 
     private void Add(string code, CheckStatus status, int row, string reason, long? id = null) =>
         checks.Add(new(code, status, reason, id, Severity: status == CheckStatus.Fail ? FindingSeverity.Warning : null, SourceRows: [row]));
