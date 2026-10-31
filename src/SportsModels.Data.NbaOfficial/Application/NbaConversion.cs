@@ -9,7 +9,7 @@ namespace SportsModels.Data.NbaOfficial.Application;
 
 internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValidator validator, IConversionWorkspace workspace) : INbaConversion
 {
-    internal const string Version = "nba-conversion-4";
+    internal const string Version = "nba-conversion-5";
 
     public async Task<ConversionRunResult> RunAsync(ConversionRequest request, CancellationToken cancellationToken = default)
     {

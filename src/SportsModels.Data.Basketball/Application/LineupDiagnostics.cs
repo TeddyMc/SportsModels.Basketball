@@ -75,7 +75,7 @@ internal static class LineupDiagnostics
                         if (!valid)
                         {
                             checks.Add(new("LINEUP.SUBSTITUTION", CheckStatus.Fail,
-                                "Same-clock batch contradicts prior/final membership, repeats an identical change or has no compatible legal substitution order. Downstream lineup becomes unknown.",
+                                "Same-clock batch contradicts prior/final membership or has no compatible legal substitution order. Downstream lineup becomes unknown.",
                                 substitutions[0].EventId, period.Key, team.TeamId, Severity: FindingSeverity.Error));
                             lineup = null;
                             CheckActors(group, team.TeamId, null, true, checks, period.Key);
@@ -160,8 +160,7 @@ internal static class LineupDiagnostics
 
     private static bool ApplyBatch(HashSet<long> lineup, SubstitutionEvent[] substitutions)
     {
-        if (substitutions.Any(s => s.PlayerOutId == s.PlayerInId)
-            || substitutions.Select(s => (s.PlayerOutId, s.PlayerInId)).Distinct().Count() != substitutions.Length) { return false; }
+        if (substitutions.Any(s => s.PlayerOutId == s.PlayerInId)) { return false; }
         var next = lineup.ToHashSet();
         foreach (var player in substitutions.SelectMany(s => new[] { s.PlayerOutId, s.PlayerInId }).Distinct())
         {

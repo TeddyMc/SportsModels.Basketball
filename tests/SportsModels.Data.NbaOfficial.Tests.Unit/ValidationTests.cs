@@ -339,6 +339,23 @@ public sealed class ValidationTests
         Assert.That(report.Checks.Single(c => c.Code == "LINEUP.SUBSTITUTION").Status, Is.EqualTo(CheckStatus.Fail));
     }
 
+    [TestCase(false,CheckStatus.Fail)]
+    [TestCase(true,CheckStatus.Pass)]
+    public void RepeatedPairRequiresAnInterveningCompatibleReverseChange(bool reverseChange, CheckStatus expected)
+    {
+        var events = new List<BasketballPlayByPlayEvent> { Boundary(1,720,PeriodMarker.Start),
+            new SubstitutionEvent(1002,2,Clock(600),null,10,101,106) };
+        if(reverseChange) { events.Add(new SubstitutionEvent(1003,3,Clock(600),null,10,106,101)); }
+        events.Add(new SubstitutionEvent(1004,4,Clock(600),null,10,101,106));
+        events.Add(Boundary(5,0,PeriodMarker.End));
+        var report=Validate(events.ToArray());
+        Assert.That(report.Checks.Single(c=>c.Code=="LINEUP.SUBSTITUTION").Status,Is.EqualTo(expected));
+        if(reverseChange)
+        {
+            Assert.That(report.Stints.Where(s=>s.PlayerId==106).Sum(s=>s.StartRemaining-s.EndRemaining),Is.EqualTo(600));
+        }
+    }
+
     [TestCase(false, CheckStatus.Pass)]
     [TestCase(true, CheckStatus.NotAssessable)]
     public void PostChangeOpeningAnchorIsNotAppliedTwiceAndCanRecoverAfterBreakGap(bool gap, CheckStatus expected)
