@@ -80,5 +80,29 @@ public sealed class AlternateLineupTests
         references.AlternatePlayByPlay.Add(new("alternate-fixture", rows));
         return references;
     }
+
+    [TestCase(false,CheckStatus.Fail)]
+    [TestCase(true,CheckStatus.NotAssessable)]
+    public void FinalFiveMismatchRequiresReliableReplay(bool missingBoundary, CheckStatus expected)
+    {
+        var references = Bundle(false);
+        var node = System.Text.Json.Nodes.JsonNode.Parse(references.Boxes[0].Box.GetRawText())!;
+        node["gameStatus"] = 3;
+        node["gameClock"] = "PT00M00.00S";
+        foreach(var side in new[]{"homeTeam","awayTeam"})
+        {
+            foreach(var player in node[side]!["players"]!.AsArray()) { player!["oncourt"]="1"; player["starter"]="0"; }
+        }
+        node["homeTeam"]!["players"]![0]!["personId"]="99";
+        references.Boxes.Add((0,"liveboxscore",JsonSerializer.SerializeToElement(node)));
+        if(missingBoundary)
+        {
+            var original=references.AlternatePlayByPlay[0];
+            references.AlternatePlayByPlay[0]=original with { Rows=original.Rows.Skip(1).ToArray() };
+        }
+        var result=AlternateLineupReplay.Build(references,true,s=>long.Parse(s),s=>long.Parse(s));
+        Assert.That(result.Checks.Single(c=>c.Code=="REFERENCE.ALTERNATE_FINAL_FIVE" && c.EntityId==10).Status,Is.EqualTo(expected));
+        Assert.That(result.Lineups.Any(l=>l.TeamId==10),Is.False);
+    }
 }
 

@@ -5,7 +5,7 @@ namespace SportsModels.Data.NbaOfficial.Application;
 
 internal static class SubstitutionCoverage
 {
-    internal const string Header = "game,competition,source_rows,mapped_rows,unresolved_rows,source_batches,passed_batches,failed_batches,unassessable_batches,rows_in_passed_batches,rows_in_failed_batches,rows_in_unassessable_batches,team_periods,assessed_team_periods,alternate_outgoing,matched_alternate_outgoing,unmatched_alternate_outgoing,alternate_minute_passes,alternate_minute_failures,actor_passes,actor_failures,actor_unassessable,alternate_minute_unassessable";
+    internal const string Header = "game,competition,source_rows,mapped_rows,unresolved_rows,source_batches,passed_batches,failed_batches,unassessable_batches,rows_in_passed_batches,rows_in_failed_batches,rows_in_unassessable_batches,team_periods,assessed_team_periods,alternate_outgoing,matched_alternate_outgoing,unmatched_alternate_outgoing,alternate_minute_passes,alternate_minute_failures,actor_passes,actor_failures,actor_unassessable,alternate_minute_unassessable,primary_rows_matched_to_alternate,primary_rows_unmatched_to_alternate,incoming_ids_linked_to_alternate,duplicate_source_rows";
 
     internal static string Row(string gameId, ConvertedGame converted, IReadOnlyList<CheckResult> checks) =>
         Calculate(gameId, converted, checks).Csv;
@@ -47,7 +47,11 @@ internal static class SubstitutionCoverage
             checks.Count(c => c.Code == "LINEUP.ACTOR" && c.Status == CheckStatus.Pass),
             checks.Count(c => c.Code == "LINEUP.ACTOR" && c.Status == CheckStatus.Fail),
             checks.Count(c => c.Code == "LINEUP.ACTOR" && c.Status == CheckStatus.NotAssessable),
-            checks.Count(c => c.Code == "REFERENCE.ALTERNATE_MINUTES" && c.Status == CheckStatus.NotAssessable) };
+            checks.Count(c => c.Code == "REFERENCE.ALTERNATE_MINUTES" && c.Status == CheckStatus.NotAssessable),
+            checks.Count(c => c.Code == "REFERENCE.PRIMARY_SUBSTITUTION" && c.Status == CheckStatus.Pass),
+            checks.Count(c => c.Code == "REFERENCE.PRIMARY_SUBSTITUTION" && c.Status == CheckStatus.Fail),
+            converted.Evidence.Count(e => e.FieldName == "PlayerInId" && e.Kind == BasketballEvidenceKind.Linked && e.SourceRows.Count == 3),
+            source.Count(r => r.Disposition == "Duplicate") };
         return (gameId + ",\"" + converted.Competition.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"," + string.Join(',', numbers), numbers);
     }
 

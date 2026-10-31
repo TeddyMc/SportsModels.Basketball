@@ -121,11 +121,12 @@ internal static class AlternateLineupReplay
                 var liveTeam = new[] { live.Box.GetProperty("homeTeam"), live.Box.GetProperty("awayTeam") }.SingleOrDefault(t => t.Text("teamId") == key);
                 if (liveTeam.ValueKind == JsonValueKind.Undefined) { continue; }
                 var finalFive = liveTeam.GetProperty("players").EnumerateArray().Where(p => p.Text("oncourt") == "1").Select(p => p.Key("personId")).ToHashSet();
-                var matches = finalFive.Count == 5 && finalFive.SetEquals(active[key]);
-                if (!matches) { reliable[key] = false; }
-                checks.Add(new("REFERENCE.ALTERNATE_FINAL_FIVE", matches ? CheckStatus.Pass : CheckStatus.Fail,
-                    "Alternate substitution replay compared with final-status, zero-clock box-score oncourt flags. These flags describe the final snapshot only.", EntityId: resolvedTeam,
-                    Severity: matches ? null : FindingSeverity.Warning));
+                var assessable = replayAssessable && finalFive.Count == 5;
+                var matches = finalFive.SetEquals(active[key]);
+                if (assessable && !matches) { reliable[key] = false; }
+                checks.Add(new("REFERENCE.ALTERNATE_FINAL_FIVE", !assessable ? CheckStatus.NotAssessable : matches ? CheckStatus.Pass : CheckStatus.Fail,
+                    $"Alternate substitution replay compared with final-status, zero-clock box-score oncourt flags. Complete reliable replay={replayAssessable}; flagged players={finalFive.Count}. Invalid/unknown replay or incomplete final-five flags cannot validate this comparison. Flags describe the final snapshot only.", EntityId: resolvedTeam,
+                    Severity: assessable && !matches ? FindingSeverity.Warning : null));
             }
             foreach (var person in box.GetProperty("players").EnumerateArray())
             {

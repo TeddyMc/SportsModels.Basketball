@@ -41,13 +41,16 @@ internal sealed class ReferenceBundle
                 {
                     var alternate = doc.RootElement.GetProperty("game");
                     if (alternate.Text("gameId") != gameId) { throw new InvalidDataException("Alternate PBP game identity mismatch."); }
-                    result.AlternatePlayByPlay.Add(new(SourceJson.Hash(paths[0].Bytes), alternate.GetProperty("actions").EnumerateArray().Select(r => r.Clone()).ToArray()));
+                    var actions = alternate.GetProperty("actions").EnumerateArray().Select(r => r.Clone()).ToArray();
+                    if (actions.Length == 0) { throw new InvalidDataException("Alternate PBP action stream is empty; unavailable for cross-feed comparison."); }
+                    result.AlternatePlayByPlay.Add(new(SourceJson.Hash(paths[0].Bytes), actions));
                     continue;
                 }
                 if (resource == "liveboxscore")
                 {
                     var liveBox = doc.RootElement.GetProperty("game");
                     if (liveBox.Text("gameId") != gameId) { throw new InvalidDataException("Alternate box-score game identity mismatch."); }
+                    ValidateSides(liveBox);
                     result.FinalStatusVerified |= liveBox.Number("gameStatus") == 3;
                     result.Boxes.Add((0, "liveboxscore", liveBox.Clone()));
                     continue;
@@ -58,13 +61,7 @@ internal sealed class ReferenceBundle
                 }
                 if (!doc.RootElement.TryGetProperty("boxScoreTraditional", out var box)) { continue; }
                 if (box.Text("gameId") != gameId) { throw new InvalidDataException("Reference game ID mismatch."); }
-                foreach (var side in new[] { "homeTeam", "awayTeam" })
-                {
-                    var team = box.GetProperty(side);
-                    if (team.Key("teamId") == "" || team.GetProperty("players").ValueKind != JsonValueKind.Array
-                        || team.GetProperty("statistics").ValueKind != JsonValueKind.Object)
-                    { throw new InvalidDataException("Reference team/roster/statistics schema is unavailable."); }
-                }
+                ValidateSides(box);
                 var parts = Path.GetFileNameWithoutExtension(paths[0].Path).Split('-');
                 var part = parts[^2];
                 var period = int.Parse(part[1..], System.Globalization.CultureInfo.InvariantCulture);
@@ -81,6 +78,17 @@ internal sealed class ReferenceBundle
             result.Checks.Add(new("REFERENCE.AVAILABILITY", CheckStatus.NotAssessable, "No usable traditional-v3 box score; retained responses may be unavailable or unsupported schemas."));
         }
         return result;
+    }
+
+    private static void ValidateSides(JsonElement box)
+    {
+        foreach (var side in new[] { "homeTeam", "awayTeam" })
+        {
+            var team = box.GetProperty(side);
+            if (team.Key("teamId") == "" || team.GetProperty("players").ValueKind != JsonValueKind.Array
+                || team.GetProperty("statistics").ValueKind != JsonValueKind.Object)
+            { throw new InvalidDataException("Reference team/roster/statistics schema is unavailable."); }
+        }
     }
 
     private void ReadTables(JsonElement tables, string gameId)

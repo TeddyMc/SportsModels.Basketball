@@ -638,12 +638,21 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
             checks.Add(new("REFERENCE.SUBSTITUTION_COVERAGE", CheckStatus.NotAssessable, "No unique matched alternate PBP snapshot; cross-feed completeness unavailable."));
             return;
         }
+        foreach (var (row, index) in rows.Select((r,i) => (r,i)).Where(x => x.r.Text("actionType") == "Substitution"))
+        {
+            var matching = alternate.Rows.Select((r,i) => (Row:r,Index:i)).Where(x => x.Row.Text("actionType") == "substitution"
+                && x.Row.Text("subType") == "out" && SameSubstitutionContext(row,x.Row)).ToArray();
+            var mapped = events.OfType<SubstitutionEvent>().SingleOrDefault(e => e.SequenceNumber == index+1);
+            checks.Add(new("REFERENCE.PRIMARY_SUBSTITUTION", matching.Length == 1 ? CheckStatus.Pass : CheckStatus.Fail,
+                "Primary outgoing substitution compared with alternate exact team/actor/period/clock/action-number context. Missing or nonunique counterpart is snapshot disagreement, not an automatic repair.",
+                mapped?.EventId,row.Number("period"),teams.TryGetValue(row.Key("teamId"),out var team) ? team : null,
+                Severity: matching.Length == 1 ? null : FindingSeverity.Warning,SourceRows:[index])
+            { ReferenceRows = matching.Select(x => new BasketballSourceRowReference(BasketballDataSource.NbaOfficial,alternate.SnapshotId,x.Index,null,x.Row.Text("actionNumber"))).ToArray() });
+        }
         foreach (var (row, index) in alternate.Rows.Select((r, i) => (r, i)).Where(x => x.r.Text("actionType") == "substitution" && x.r.Text("subType") == "out"))
         {
             var primary = rows.Select((r, i) => (Row: r, Index: i)).Where(x => x.Row.Text("actionType") == "Substitution"
-                && x.Row.Key("personId") == row.Key("personId") && x.Row.Key("teamId") == row.Key("teamId")
-                && x.Row.Number("period") == row.Number("period") && x.Row.Text("clock") == row.Text("clock")
-                && x.Row.Text("actionNumber") == row.Text("actionNumber")).ToArray();
+                && SameSubstitutionContext(x.Row,row)).ToArray();
             var mapped = primary.Length == 1 ? events.OfType<SubstitutionEvent>().SingleOrDefault(e => e.SequenceNumber == primary[0].Index + 1) : null;
             checks.Add(new("REFERENCE.SUBSTITUTION_COVERAGE", primary.Length == 1 ? CheckStatus.Pass : CheckStatus.Fail,
                 primary.Length == 1 ? "Alternate outgoing substitution has one exact primary team/actor/period/clock/action-number counterpart. Incoming participant checked separately."
@@ -653,6 +662,11 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
             { ReferenceRows = [new(BasketballDataSource.NbaOfficial, alternate.SnapshotId, index, null, row.Text("actionNumber"))] });
         }
     }
+
+    private static bool SameSubstitutionContext(JsonElement primary, JsonElement alternateRow) =>
+        primary.Key("personId") == alternateRow.Key("personId") && primary.Key("teamId") == alternateRow.Key("teamId")
+        && primary.Number("period") == alternateRow.Number("period") && primary.Text("clock") == alternateRow.Text("clock")
+        && primary.Text("actionNumber") == alternateRow.Text("actionNumber");
 
     private void Add(string code, CheckStatus status, int row, string reason, long? id = null) =>
         checks.Add(new(code, status, reason, id, Severity: status == CheckStatus.Fail ? FindingSeverity.Warning : null, SourceRows: [row]));

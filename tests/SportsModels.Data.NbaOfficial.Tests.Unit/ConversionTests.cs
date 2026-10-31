@@ -292,6 +292,20 @@ public sealed class ConversionTests
         return JsonSerializer.SerializeToUtf8Bytes(new { game = new { gameId, actions = sample.GetProperty("Rows").EnumerateArray().Select(r => r.GetProperty("Action")).ToArray() } });
     }
 
+    [TestCase("liveboxscore", """{"game":{"gameId":"0022501122","gameStatus":3}}""")]
+    [TestCase("liveplaybyplay", """{"game":{"gameId":"0022501122","actions":[]}}""")]
+    public void UnusableOptionalReferenceDoesNotBreakOtherwiseConvertibleGame(string endpoint, string json)
+    {
+        var bytes = Encoding.UTF8.GetBytes(json);
+        var references = ReferenceBundle.Parse([(endpoint+"-p0-"+SourceJson.Hash(bytes)+".json",bytes)],"0022501122");
+        var converted = Convert(SourceCase("0022501122"),references);
+        Assert.That(converted.Game.Events, Is.Not.Empty);
+        Assert.That(converted.Checks.Any(c => c.Code == "REFERENCE.SCHEMA"), Is.True);
+        Assert.That(references.AlternatePlayByPlay, Is.Empty);
+        Assert.That(references.Boxes, Is.Empty);
+        Assert.That(references.FinalStatusVerified, Is.False);
+    }
+
     [Test]
     public void SavedAlternateIdsResolveIncomingAndExposeMissingBreakRowsWithSnapshotLineage()
     {
@@ -308,6 +322,9 @@ public sealed class ConversionTests
             && e.SourceRows.Count == 3 && e.SourceRows[1].SnapshotId == alternateSnapshot), Is.True);
         Assert.That(converted.Checks.Any(c => c.Code == "REFERENCE.SUBSTITUTION_COVERAGE" && c.Period == 2
             && c.Status == CheckStatus.Fail && c.ReferenceRows!.Count == 1), Is.True);
+        Assert.That(converted.Checks.Count(c => c.Code == "REFERENCE.PRIMARY_SUBSTITUTION"),
+            Is.EqualTo(converted.Rows.Count(r => r.Original.Text("actionType") == "Substitution")));
+        Assert.That(converted.Checks.Any(c => c.Code == "REFERENCE.PRIMARY_SUBSTITUTION" && c.Status == CheckStatus.Pass), Is.True);
         Assert.That(converted.Context.OpeningLineups, Is.Empty, "A selection of rows cannot establish a whole-game lineup replay.");
         var report = new BasketballValidator().Validate(converted.Game, converted.Context);
         var summary = SubstitutionCoverage.Row(root.Text("GameId"), converted, converted.Checks.Concat(report.Checks).ToArray()).Split(',');
