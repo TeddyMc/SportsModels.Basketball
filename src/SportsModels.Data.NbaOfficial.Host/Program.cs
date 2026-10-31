@@ -4,7 +4,7 @@ using SportsModels.Data.NbaOfficial.Autofac;
 using SportsModels.Data.NbaOfficial.Contracts;
 using SportsModels.Data.Basketball.Infrastructure;
 
-if (args.Length > 0 && args[0] is "convert" or "references" or "backup-registry")
+if (args.Length > 0 && args[0] is "convert" or "references" or "references-resume" or "backup-registry")
 {
     return await RunDataCommand(args);
 }
@@ -71,7 +71,7 @@ static async Task<int> RunDataCommand(string[] arguments)
             return 0;
         }
         var builder = new ContainerBuilder();
-        if (arguments[0] == "references" && arguments.Length is >= 3 and <= 7)
+        if (arguments[0] is "references" or "references-resume" && arguments.Length is >= 3 and <= 7)
         {
             builder.RegisterModule<PlayByPlayModule>();
             using var container = builder.Build();
@@ -80,7 +80,10 @@ static async Task<int> RunDataCommand(string[] arguments)
             {
                 Endpoints = arguments.Length >= 5 && arguments[4] != "all" ? arguments[4].Split(',') : null,
                 StartDate = arguments.Length >= 6 ? DateOnly.ParseExact(arguments[5], "yyyy-MM-dd", CultureInfo.InvariantCulture) : null,
-                EndDate = arguments.Length >= 7 ? DateOnly.ParseExact(arguments[6], "yyyy-MM-dd", CultureInfo.InvariantCulture) : null
+                EndDate = arguments.Length >= 7 ? DateOnly.ParseExact(arguments[6], "yyyy-MM-dd", CultureInfo.InvariantCulture) : null,
+                SkipExisting = arguments[0] == "references-resume",
+                RequestDelay = arguments[0] == "references-resume" ? TimeSpan.FromSeconds(2) : TimeSpan.Zero,
+                Progress = new ReferenceProgress()
             }, cancellation.Token);
             foreach (var failure in result.Failures) { Console.Error.WriteLine($"FAILED {failure.Resource} [{failure.Kind}]: {failure.Message}"); }
             Console.WriteLine($"Games={result.Discovered} Snapshots={result.Downloaded} Existing={result.Skipped} Failures={result.Failed}");
@@ -96,7 +99,7 @@ static async Task<int> RunDataCommand(string[] arguments)
             Console.WriteLine(result.RunDirectory);
             return result.Failed == 0 ? 0 : 1;
         }
-        Console.Error.WriteLine("Usage: references <pbp-directory> <reference-directory> [game-ids|all] [endpoints|all] [start:yyyy-MM-dd] [end:yyyy-MM-dd]\n"
+        Console.Error.WriteLine("Usage: references|references-resume <pbp-directory> <reference-directory> [game-ids|all] [endpoints|all] [start:yyyy-MM-dd] [end:yyyy-MM-dd]\n"
             + "       convert <pbp-directory> <reference-directory> <output-directory> <registry.sqlite> [comma-separated-game-ids]\n"
             + "       backup-registry <registry.sqlite> <new-backup.sqlite>");
         return 2;
@@ -104,4 +107,16 @@ static async Task<int> RunDataCommand(string[] arguments)
     catch (OperationCanceledException) { Console.Error.WriteLine("Cancelled; incomplete runs have no completion manifest."); return 130; }
     catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException or FormatException)
     { Console.Error.WriteLine(exception.Message); return 2; }
+}
+
+internal sealed class ReferenceProgress : IProgress<ReferenceAcquisitionProgress>
+{
+    private int previousFailures;
+
+    public void Report(ReferenceAcquisitionProgress value)
+    {
+        if (value.CompletedGames % 10 == 0 || value.CompletedGames == value.TotalGames || value.Failures > previousFailures)
+        { Console.WriteLine($"Progress={value.CompletedGames}/{value.TotalGames} Last={value.GameId} Downloaded={value.Downloaded} Skipped={value.Skipped} Failures={value.Failures}"); }
+        previousFailures = value.Failures;
+    }
 }

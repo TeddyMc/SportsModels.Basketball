@@ -291,4 +291,26 @@ public sealed class ConversionTests
         // These are ordered selections, not complete games; original indices/hash are retained in the fixture.
         return JsonSerializer.SerializeToUtf8Bytes(new { game = new { gameId, actions = sample.GetProperty("Rows").EnumerateArray().Select(r => r.GetProperty("Action")).ToArray() } });
     }
+
+    [Test]
+    public void SavedAlternateIdsResolveIncomingAndExposeMissingBreakRowsWithSnapshotLineage()
+    {
+        using var fixture = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(TestContext.CurrentContext.TestDirectory, "Fixtures", "alternate-substitutions.json")));
+        var root = fixture.RootElement;
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(new { game = new { gameId = root.Text("GameId"),
+            actions = root.GetProperty("PrimaryRows").EnumerateArray().Select(r => r.GetProperty("Action")).ToArray() } });
+        var references = new ReferenceBundle();
+        var alternateRows = root.GetProperty("AlternateRows").EnumerateArray().Select(r => r.GetProperty("Action").Clone()).ToArray();
+        var alternateSnapshot = SourceJson.Hash(JsonSerializer.SerializeToUtf8Bytes(alternateRows));
+        references.AlternatePlayByPlay.Add(new(alternateSnapshot, alternateRows));
+        var converted = Convert(bytes, references);
+        Assert.That(converted.Evidence.Any(e => e.FieldName == "PlayerInId" && e.Kind == BasketballEvidenceKind.Linked
+            && e.SourceRows.Count == 3 && e.SourceRows[1].SnapshotId == alternateSnapshot), Is.True);
+        Assert.That(converted.Checks.Any(c => c.Code == "REFERENCE.SUBSTITUTION_COVERAGE" && c.Period == 2
+            && c.Status == CheckStatus.Fail && c.ReferenceRows!.Count == 1), Is.True);
+        Assert.That(converted.Context.OpeningLineups, Is.Empty, "A selection of rows cannot establish a whole-game lineup replay.");
+        var report = new BasketballValidator().Validate(converted.Game, converted.Context);
+        var summary = SubstitutionCoverage.Row(root.Text("GameId"), converted, converted.Checks.Concat(report.Checks).ToArray()).Split(',');
+        Assert.That(int.Parse(summary[2]), Is.EqualTo(converted.Rows.Count(r => r.Original.Text("actionType") == "Substitution")));
+    }
 }

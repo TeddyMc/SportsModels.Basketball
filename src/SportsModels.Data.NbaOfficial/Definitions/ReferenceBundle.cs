@@ -11,6 +11,7 @@ internal sealed class ReferenceBundle
     public List<(string TeamId, string CoachId, string Name)> Coaches { get; } = [];
     public List<(string TeamId, string PlayerId, string Name)> RosterPlayers { get; } = [];
     public bool FinalStatusVerified { get; private set; }
+    public List<AlternatePlayByPlay> AlternatePlayByPlay { get; } = [];
 
     public static ReferenceBundle Parse(IReadOnlyList<(string Path, byte[] Bytes)> inputs, string gameId)
     {
@@ -35,6 +36,22 @@ internal sealed class ReferenceBundle
             try
             {
                 using var doc = JsonDocument.Parse(paths[0].Bytes);
+                var resource = Path.GetFileName(paths[0].Path).Split('-')[0];
+                if (resource == "liveplaybyplay")
+                {
+                    var alternate = doc.RootElement.GetProperty("game");
+                    if (alternate.Text("gameId") != gameId) { throw new InvalidDataException("Alternate PBP game identity mismatch."); }
+                    result.AlternatePlayByPlay.Add(new(SourceJson.Hash(paths[0].Bytes), alternate.GetProperty("actions").EnumerateArray().Select(r => r.Clone()).ToArray()));
+                    continue;
+                }
+                if (resource == "liveboxscore")
+                {
+                    var liveBox = doc.RootElement.GetProperty("game");
+                    if (liveBox.Text("gameId") != gameId) { throw new InvalidDataException("Alternate box-score game identity mismatch."); }
+                    result.FinalStatusVerified |= liveBox.Number("gameStatus") == 3;
+                    result.Boxes.Add((0, "liveboxscore", liveBox.Clone()));
+                    continue;
+                }
                 if (doc.RootElement.TryGetProperty("resultSets", out var tables))
                 {
                     result.ReadTables(tables, gameId);
@@ -97,7 +114,7 @@ internal sealed class ReferenceBundle
         }
     }
 
-    public IEnumerable<JsonElement> Teams() => Boxes.Where(x => x.Period == 0)
+    public IEnumerable<JsonElement> Teams() => Boxes.Where(x => x.Period == 0).OrderBy(x => x.Mode == "liveboxscore" ? 1 : 0)
         .SelectMany(x => new[] { x.Box.GetProperty("homeTeam"), x.Box.GetProperty("awayTeam") });
 
     public (List<StatisticLine> Statistics, List<LineupEvidence> Lineups) Observations(
@@ -105,7 +122,7 @@ internal sealed class ReferenceBundle
     {
         var statistics = new List<StatisticLine>();
         var lineups = new List<LineupEvidence>();
-        foreach (var (period, mode, box) in Boxes.OrderBy(x => x.Mode == "range" ? 0 : 1))
+        foreach (var (period, mode, box) in Boxes.OrderBy(x => x.Mode == "liveboxscore" ? 2 : x.Mode == "range" ? 0 : 1))
         {
             try
             {
@@ -130,6 +147,17 @@ internal sealed class ReferenceBundle
                     }
                     if (statistics.Any(x => x.TeamId == id && x.PlayerId is null && x.Period == period)) { continue; }
                     var teamLine = Line(id.Value, null, period, teamStats);
+                    if (mode == "liveboxscore")
+                    {
+                        var values = new Dictionary<string, double>(teamLine.Values);
+                        // CDN totals include team rebounds, whereas the replay's REB is player credited.
+                        foreach (var (key, field) in new[] { ("REB", "reboundsPersonal"), ("OREB", "reboundsOffensivePersonal"), ("DREB", "reboundsDefensivePersonal") })
+                        {
+                            if (double.TryParse(teamStats.Text(field), out var value)) { values[key] = value; }
+                            else { values.Remove(key); }
+                        }
+                        teamLine = teamLine with { Values = values };
+                    }
                     var persons = team.GetProperty("players").EnumerateArray().ToArray();
                     var parsedTurnovers = persons.Select(p => int.TryParse(p.GetProperty("statistics").Text("turnovers"), out var n) ? (int?)n : null).ToArray();
                     if (box.Text("gameId").Substring(3, 2) == "25" && parsedTurnovers.All(n => n is not null)
@@ -147,11 +175,15 @@ internal sealed class ReferenceBundle
                         if (player is null) { continue; }
                         statistics.Add(Line(id.Value, player, period, person.GetProperty("statistics")));
                         // Full-game position evidence supports Q1 only, never a later period opening five.
-                        if (period == 0 && !string.IsNullOrWhiteSpace(person.Text("position"))) { starters.Add(player.Value); }
+                        if (period == 0 && IsStarter(person)) { starters.Add(player.Value); }
                     }
                     if (starters.Count == 5)
                     {
-                        lineups.Add(new(1, id.Value, starters, "Full-game traditional-v3 starting positions; Q1 only."));
+                        var agreement = StarterAgreement(team.Text("teamId"));
+                        Checks.Add(new("REFERENCE.STARTER_AGREEMENT", agreement is null ? CheckStatus.NotAssessable : agreement.Value ? CheckStatus.Pass : CheckStatus.Fail,
+                            "Compare complete five-player starting metadata across retained full-game box-score feeds. One available starter source is not cross-feed corroboration.",
+                            Period: 1, EntityId: id, Severity: agreement == false ? FindingSeverity.Warning : null));
+                        if (agreement != false) { lineups.Add(new(1, id.Value, starters, $"Full-game {mode} starter metadata; Q1 only.")); }
                     }
                 }
             }
@@ -161,6 +193,16 @@ internal sealed class ReferenceBundle
             }
         }
         return (statistics, lineups);
+    }
+
+    internal static bool IsStarter(JsonElement player) => player.TryGetProperty("starter", out _)
+        ? player.Text("starter") == "1" : !string.IsNullOrWhiteSpace(player.Text("position"));
+
+    internal bool? StarterAgreement(string teamId)
+    {
+        var candidates = Teams().Where(t => t.Text("teamId") == teamId).Select(t => t.GetProperty("players").EnumerateArray()
+            .Where(IsStarter).Select(p => p.Key("personId")).Where(p => p != "").ToHashSet()).Where(p => p.Count == 5).ToArray();
+        return candidates.Length < 2 ? null : candidates.Skip(1).All(c => c.SetEquals(candidates[0]));
     }
 
     private static StatisticLine Line(long team, long? player, int period, JsonElement row)

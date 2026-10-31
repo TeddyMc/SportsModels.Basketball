@@ -230,6 +230,134 @@ public sealed class ValidationTests
     private static BasketballGameTeam Team(long id, int firstPlayer) => new(id, id.ToString(), [],
         Enumerable.Range(firstPlayer, 7).Select(p => new BasketballGamePlayer(p, p.ToString(), [])).ToArray());
 
+    [TestCase("FGA")]
+    [TestCase("AST")]
+    [TestCase("BLK")]
+    [TestCase("STL")]
+    [TestCase("TOV")]
+    [TestCase("REB")]
+    [TestCase("PF")]
+    [TestCase("FTA")]
+    public void StatisticalActorOutsideKnownFiveIsFlaggedAndLaterStateBecomesUnknown(string statistic)
+    {
+        var actorEvent = ActorEvent(statistic);
+        var report = Validate([Boundary(1,720,PeriodMarker.Start), actorEvent,
+            Shot(3,500), Boundary(4,0,PeriodMarker.End)]);
+        Assert.That(report.Checks.Single(c => c.Code == "LINEUP.ACTOR" && c.EventId == actorEvent.EventId
+            && c.EntityId == 106 && c.Stat == statistic).Status, Is.EqualTo(CheckStatus.Fail));
+        Assert.That(report.Checks.Single(c => c.Code == "LINEUP.ACTOR" && c.EventId == 1003).Status, Is.EqualTo(CheckStatus.NotAssessable));
+        Assert.That(report.Checks.Single(c => c.Code == "MINUTES.COVERAGE" && c.EntityId == 10).Status, Is.EqualTo(CheckStatus.NotAssessable));
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void UnknownLineupOrSameClockSubstitutionDoesNotAssertOffCourtStat(bool sameClockSubstitution)
+    {
+        var items = new List<BasketballPlayByPlayEvent> { Boundary(1,720,PeriodMarker.Start) };
+        if (sameClockSubstitution) { items.Add(new SubstitutionEvent(1099, 2, Clock(600), null, 10,101,106)); }
+        items.Add(ActorEvent("FGA"));
+        var context = sameClockSubstitution ? Context() : Context() with { OpeningLineups = [] };
+        var report = Validate(items.ToArray(), context);
+        Assert.That(report.Checks.Single(c => c.Code == "LINEUP.ACTOR").Status, Is.EqualTo(CheckStatus.NotAssessable));
+    }
+
+    [Test]
+    public void BenchTechnicalAndTechnicalFreeThrowDoNotImplyIllegalOnCourtParticipation()
+    {
+        var foul = new FoulEvent(1002,2,Clock(600),null,[new(10,106,null)],null,FoulType.Bench,null);
+        var freeThrow = (FreeThrowEvent)ActorEvent("FTA") with { EventId = 1003, SequenceNumber = 3, Category = FreeThrowCategory.Technical };
+        var report = Validate([Boundary(1,720,PeriodMarker.Start),foul,freeThrow,Boundary(4,0,PeriodMarker.End)]);
+        Assert.That(report.Checks.Any(c => c.Code == "LINEUP.ACTOR" && c.Status == CheckStatus.Fail), Is.False);
+        Assert.That(report.Checks.Single(c => c.Code == "MINUTES.COVERAGE" && c.EntityId == 10).Status, Is.EqualTo(CheckStatus.Pass));
+    }
+
+    [Test]
+    public void DefensiveStatIsCheckedAgainstDefendersTeamRatherThanShootersFive()
+    {
+        var blocked = Shot(2,600) with { BlockingPlayerId = 201, Outcome = ShotOutcome.Missed };
+        var report = Validate([Boundary(1,720,PeriodMarker.Start),blocked,Boundary(3,0,PeriodMarker.End)]);
+        Assert.That(report.Checks.Single(c => c.Code == "LINEUP.ACTOR" && c.Stat == "BLK").Status, Is.EqualTo(CheckStatus.Pass));
+        Assert.That(report.Checks.Single(c => c.Code == "LINEUP.ACTOR" && c.Stat == "BLK").EntityId, Is.EqualTo(201));
+    }
+
+    [TestCase(false, CheckStatus.Fail)]
+    [TestCase(true, CheckStatus.Pass)]
+    public void StatAfterSubstitutionUsesChangedFive(bool incomingScores, CheckStatus expected)
+    {
+        var shot = Shot(3,500) with { ShooterPlayerId = incomingScores ? 106 : 101 };
+        var report = Validate([Boundary(1,720,PeriodMarker.Start),new SubstitutionEvent(1002,2,Clock(600),null,10,101,106),
+            shot,Boundary(4,0,PeriodMarker.End)]);
+        Assert.That(report.Checks.Single(c => c.Code == "LINEUP.ACTOR").Status, Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void UnchangedPlayerCanBeAssessedAtAnotherPlayersSubstitutionClock()
+    {
+        var report = Validate([Boundary(1,720,PeriodMarker.Start),new SubstitutionEvent(1002,2,Clock(600),null,10,102,106),
+            Shot(3,600),Boundary(4,0,PeriodMarker.End)]);
+        Assert.That(report.Checks.Single(c => c.Code == "LINEUP.ACTOR").Status, Is.EqualTo(CheckStatus.Pass));
+    }
+
+    [Test]
+    public void UnresolvedOpeningChangeBeforeFirstMappedEventCannotSilentlyValidateLineup()
+    {
+        var report = Validate([Boundary(2,720,PeriodMarker.Start),Shot(3,600),Boundary(4,0,PeriodMarker.End)],
+            Context() with { Gaps = [new(1,["MIN"],true,false,"Unresolved substitution before mapped start marker")] });
+        Assert.That(report.Checks.Single(c => c.Code == "LINEUP.ACTOR").Status, Is.EqualTo(CheckStatus.NotAssessable));
+        Assert.That(report.Checks.Single(c => c.Code == "MINUTES.COVERAGE" && c.EntityId == 10).Status, Is.EqualTo(CheckStatus.NotAssessable));
+    }
+
+    private static BasketballPlayByPlayEvent ActorEvent(string statistic) => statistic switch
+    {
+        "FGA" => Shot(2,600) with { ShooterPlayerId = 106 },
+        "AST" => Shot(2,600) with { AssistingPlayerId = 106 },
+        "BLK" => Shot(2,600) with { TeamId = 20, ShooterPlayerId = 201, BlockingPlayerId = 106, Outcome = ShotOutcome.Missed },
+        "STL" => new TurnoverEvent(1002,2,Clock(600),null,20,201,TurnoverType.BadPass,106),
+        "TOV" => new TurnoverEvent(1002,2,Clock(600),null,10,106,TurnoverType.BadPass,null),
+        "REB" => new ReboundEvent(1002,2,Clock(600),null,10,106,ReboundType.Defensive,ReboundCredit.Player,null,null),
+        "PF" => new FoulEvent(1002,2,Clock(600),null,[new(10,106,null)],null,FoulType.Personal,null),
+        "FTA" => new FreeThrowEvent(1002,2,Clock(600),null,10,106,ShotOutcome.Made,1,1,null,FreeThrowCategory.Ordinary),
+        _ => throw new ArgumentException("Unsupported test statistic")
+    };
+
+    [Test]
+    public void ZeroTimeRoundTripDoesNotCreateMinutesOrInvalidateFive()
+    {
+        var report = Validate([Boundary(1, 720, PeriodMarker.Start),
+            new SubstitutionEvent(1002, 2, Clock(600), null, 10, 101, 106),
+            new SubstitutionEvent(1003, 3, Clock(600), null, 10, 106, 101), Boundary(4, 0, PeriodMarker.End)]);
+        Assert.That(report.Checks.Single(c => c.Code == "LINEUP.SUBSTITUTION").Status, Is.EqualTo(CheckStatus.Pass));
+        Assert.That(report.Stints.Any(s => s.PlayerId == 106), Is.False);
+    }
+
+    [TestCase(106,107)]
+    [TestCase(101,102)]
+    public void NetZeroBatchWithNoPossibleLegalOrderDoesNotPass(int first, int second)
+    {
+        var report = Validate([Boundary(1,720,PeriodMarker.Start),new SubstitutionEvent(1002,2,Clock(600),null,10,first,second),
+            new SubstitutionEvent(1003,3,Clock(600),null,10,second,first),Boundary(4,0,PeriodMarker.End)]);
+        Assert.That(report.Checks.Single(c => c.Code == "LINEUP.SUBSTITUTION").Status, Is.EqualTo(CheckStatus.Fail));
+    }
+
+    [TestCase(false, CheckStatus.Pass)]
+    [TestCase(true, CheckStatus.NotAssessable)]
+    public void PostChangeOpeningAnchorIsNotAppliedTwiceAndCanRecoverAfterBreakGap(bool gap, CheckStatus expected)
+    {
+        var context = Context() with
+        {
+            OpeningLineups = Context().OpeningLineups.Concat(new[] { new LineupEvidence(2, 10, [106,102,103,104,105], "Corroborated alternate opening")
+                { AfterOpeningClockSubstitutions = true } }).ToArray(),
+            Gaps = gap ? [new(4, ["MIN"], true, false, "Unresolved break row")] : []
+        };
+        var report = Validate([Boundary(1, 720, PeriodMarker.Start), Boundary(2, 0, PeriodMarker.End),
+            Boundary(3, 720, PeriodMarker.Start, 2), new SubstitutionEvent(1004, 4, Clock(720, 2), null, 10, 101, 106),
+            Boundary(5, 0, PeriodMarker.End, 2)], context);
+        Assert.That(report.Checks.Single(c => c.Code == "LINEUP.BREAK_TRANSITION").Status, Is.EqualTo(expected));
+        Assert.That(report.Checks.Single(c => c.Code == "MINUTES.COVERAGE" && c.Period == 2 && c.EntityId == 10).Status, Is.EqualTo(CheckStatus.Pass));
+        Assert.That(report.Stints.Where(s => s.Period == 2 && s.PlayerId == 106).Sum(s => s.StartRemaining-s.EndRemaining), Is.EqualTo(720));
+        Assert.That(report.ReferenceLineups, Has.Count.EqualTo(3));
+    }
+
     private static GameValidationContext Context() => new(true, false,
         [new(1, 10, [101, 102, 103, 104, 105], "Known synthetic opening-five fixture"),
          new(1, 20, [201, 202, 203, 204, 205], "Known synthetic opening-five fixture")], [], [], [], false, "No reference fixture.");

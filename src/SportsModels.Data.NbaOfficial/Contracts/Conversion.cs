@@ -24,6 +24,17 @@ public sealed record ReferenceAcquisitionRequest(string InputDirectory, string O
     public DateOnly? StartDate { get; init; }
     public DateOnly? EndDate { get; init; }
     public IReadOnlyList<string>? Endpoints { get; init; }
+    public bool SkipExisting { get; init; }
+    public TimeSpan RequestDelay { get; init; }
+    public IProgress<ReferenceAcquisitionProgress>? Progress { get; init; }
+}
+
+public sealed record ReferenceAcquisitionProgress(int CompletedGames, int TotalGames, string GameId, int Downloaded, int Skipped, int Failures);
+public sealed record ReferenceAcquisitionSummary(string RunId, DateTime StartedAtUtc, DateTime CompletedAtUtc,
+    string InputDirectory, IReadOnlyList<string>? Endpoints, bool SkipExisting, IngestionResult Result)
+{
+    public int CompletedGames { get; init; }
+    public bool HaltedAfterRepeatedFailures { get; init; }
 }
 
 public interface INbaReferenceAcquisition

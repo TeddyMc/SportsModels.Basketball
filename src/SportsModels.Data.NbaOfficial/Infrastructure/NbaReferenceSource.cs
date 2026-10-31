@@ -6,10 +6,22 @@ internal sealed class NbaReferenceSource(HttpClient client) : INbaReferenceSourc
 {
     public Task<byte[]> DownloadAsync(string endpoint, string gameId, int period, CancellationToken cancellationToken)
     {
+        if (endpoint == "gamerotation")
+        {
+            return new NbaHttpSource(client).GetAsync($"https://stats.nba.com/stats/gamerotation?GameID={gameId}&LeagueID=00", cancellationToken);
+        }
+        if (endpoint == "liveplaybyplay")
+        {
+            return new NbaHttpSource(client).GetAsync($"https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{gameId}.json", cancellationToken);
+        }
+        if (endpoint == "liveboxscore")
+        {
+            return new NbaHttpSource(client).GetAsync($"https://cdn.nba.com/static/json/liveData/boxscore/boxscore_{gameId}.json", cancellationToken);
+        }
         if (endpoint.StartsWith("commonteamroster-", StringComparison.Ordinal))
         {
             var teamId = endpoint["commonteamroster-".Length..];
-            if (teamId.Length != 10 || teamId.Any(c => !char.IsAsciiDigit(c))) { throw new ArgumentException("Invalid team ID."); }
+            if (teamId.Length > 20 || !long.TryParse(teamId, out var teamKey) || teamKey <= 0) { throw new ArgumentException("Invalid team ID."); }
             var year = 2000 + int.Parse(gameId.Substring(3, 2), System.Globalization.CultureInfo.InvariantCulture);
             return new NbaHttpSource(client).GetAsync($"https://stats.nba.com/stats/commonteamroster?TeamID={teamId}&Season={year}-{(year + 1) % 100:D2}&LeagueID=00", cancellationToken);
         }

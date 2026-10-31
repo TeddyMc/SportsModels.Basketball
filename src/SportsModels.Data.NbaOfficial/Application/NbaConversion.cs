@@ -9,7 +9,7 @@ namespace SportsModels.Data.NbaOfficial.Application;
 
 internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValidator validator, IConversionWorkspace workspace) : INbaConversion
 {
-    internal const string Version = "nba-conversion-3";
+    internal const string Version = "nba-conversion-4";
 
     public async Task<ConversionRunResult> RunAsync(ConversionRequest request, CancellationToken cancellationToken = default)
     {
@@ -21,6 +21,8 @@ internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValid
         var snapshots = new List<InputSnapshot>();
         var failureCount = 0;
         var findings = new StringBuilder("game,input,code,status,severity,event,period,entity,stat,expected,observed,evidence\n");
+        var substitutions = new StringBuilder(SubstitutionCoverage.Header + "\n");
+        var substitutionCoverage = new List<(string Competition, int[] Counts)>();
         var selected = 0;
         var seen = new HashSet<string>();
         var retained = new HashSet<string>();
@@ -69,6 +71,9 @@ internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValid
                 dispositions = converted.Rows;
                 var validation = validator.Validate(converted.Game, converted.Context);
                 var checks = converted.Checks.Concat(validation.Checks).ToArray();
+                var substitutionSummary = SubstitutionCoverage.Calculate(gameId, converted, checks);
+                substitutions.AppendLine(substitutionSummary.Csv);
+                substitutionCoverage.Add((converted.Competition, substitutionSummary.Counts));
                 var partial = dispositions.Any(r => r.Disposition == "Unresolved") || checks.Any(c => c.Status == CheckStatus.NotAssessable);
                 var status = partial ? "Partial" : "ConvertedWithDiagnostics";
                 var report = new GameConversionReport(runId, gameId, converted.Competition, status, registry.RegistryId, registry.Revision,
@@ -106,12 +111,14 @@ internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValid
         await workspace.WriteTextAsync(Path.Combine(run, "games.csv"), summary.ToString(), cancellationToken);
         await workspace.WriteTextAsync(Path.Combine(run, "checks.csv"), aggregates.ToString(), cancellationToken);
         await workspace.WriteTextAsync(Path.Combine(run, "findings.csv"), findings.ToString(), cancellationToken);
+        await workspace.WriteTextAsync(Path.Combine(run, "substitutions.csv"), substitutions.ToString(), cancellationToken);
         registry.Backup(Path.Combine(run, "registry.sqlite"));
         await workspace.WriteTextAsync(Path.Combine(run, "summary.md"), $"# NBA conversion diagnostics\n\nRun `{runId}`, converter `{Version}`, registry `{registry.RegistryId}` at revision {registry.Revision}.\n\n"
             + $"Attempted {summaries.Count}; converted {summaries.Count - failureCount}; failed {failureCount}. Source rows {summaries.Sum(s => s.Rows)}; unresolved {summaries.Sum(s => s.Unknown)}.\n\n"
             + "These outputs are retrospective diagnostic data. Converted does not mean fully validated or clean. Scoring/foul coverage, lineup/minutes coverage and wider possession/stat coverage must be assessed separately in each game's checks.\n\n"
             + "Reference absence, unverified interval/precision, coordinates, team heaves, coach-team metadata and uncertain period-opening lineups remain explicit limitations. No source repair is inferred. See games.csv, checks.csv and findings.csv for denominators and evidence; detailed original rows and field evidence are in reports/.\n\n"
             + "## Competition coverage\n\n" + string.Join('\n', summaries.GroupBy(s => s.Competition).Select(g => $"- {g.Key}: {g.Count()}")) + "\n\n"
+            + SubstitutionCoverage.Summary(substitutionCoverage)
             + "## Priorities for #15\n\n" + string.Join('\n', aggregate.Where(x => x.Key.Status is CheckStatus.Fail or CheckStatus.NotAssessable)
                 .OrderByDescending(x => x.Value.Games.Count).Take(20).Select(x => $"- {x.Key.Code}: {x.Key.Status}, {x.Value.Games.Count} games, {x.Value.Count} results.")) + "\n", cancellationToken);
         await workspace.WriteJsonAsync(Path.Combine(run, "manifest.json"), new

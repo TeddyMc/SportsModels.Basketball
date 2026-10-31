@@ -25,10 +25,12 @@ internal sealed class LocalGameInventoryReader : ILocalGameInventory
                 var periods = rows.Select(r => r.GetProperty("period").GetInt32()).DefaultIfEmpty(0).Max();
                 if (periods < 0 || periods > 20) { throw new InvalidDataException("Unsupported period count."); }
                 var teams = rows.Select(r => r.Key("teamId")).Where(t => t != "").Distinct().ToArray();
-                if (teams.Any(t => t.Length != 10 || t.Any(c => !char.IsAsciiDigit(c)))) { throw new InvalidDataException("Invalid team identity."); }
+                // International/special-format NBA games can have shorter provider team keys.
+                // Do not discard their usable game box scores because they are not NBA franchise IDs.
+                teams = teams.Where(t => long.TryParse(t, out var value) && value > 0).ToArray();
                 games.Add(new(id, periods, teams));
             }
-            catch (Exception exception) when (exception is JsonException or IOException or KeyNotFoundException or InvalidOperationException or UnauthorizedAccessException)
+            catch (Exception exception) when (exception is JsonException or IOException or InvalidDataException or KeyNotFoundException or InvalidOperationException or UnauthorizedAccessException)
             { failures.Add(new(path, FailureKind.InvalidJson, exception.Message)); }
         }
         return new(true, games, failures);

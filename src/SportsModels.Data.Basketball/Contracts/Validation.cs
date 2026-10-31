@@ -8,7 +8,10 @@ public enum FindingSeverity { Warning, Error }
 public sealed record CheckResult(string Code, CheckStatus Status, string Evidence,
     long? EventId = null, int? Period = null, long? EntityId = null, string? Stat = null,
     double? Expected = null, double? Observed = null, FindingSeverity? Severity = null,
-    IReadOnlyList<int>? SourceRows = null);
+    IReadOnlyList<int>? SourceRows = null)
+{
+    public IReadOnlyList<BasketballSourceRowReference>? ReferenceRows { get; init; }
+}
 
 public sealed record StatisticLine(long TeamId, long? PlayerId, int Period,
     IReadOnlyDictionary<string, double> Values, IReadOnlyList<string> Unknown)
@@ -16,7 +19,10 @@ public sealed record StatisticLine(long TeamId, long? PlayerId, int Period,
     public IReadOnlyDictionary<string, string> ComparisonKeys { get; init; } = new Dictionary<string, string>();
 }
 
-public sealed record LineupEvidence(int Period, long TeamId, IReadOnlyList<long> Players, string Evidence);
+public sealed record LineupEvidence(int Period, long TeamId, IReadOnlyList<long> Players, string Evidence)
+{
+    public bool AfterOpeningClockSubstitutions { get; init; }
+}
 public sealed record PlayerStint(int Period, long TeamId, long PlayerId, double StartRemaining, double EndRemaining);
 public sealed record ScoreObservation(int SequenceNumber, int? Home, int? Away, int SourceRow);
 public sealed record FoulCountObservation(int SequenceNumber, long PlayerId, int PersonalFouls, int SourceRow);
@@ -40,7 +46,10 @@ public sealed record GameValidationContext(bool OrdinaryNbaRules, bool Final,
 }
 
 public sealed record ValidationReport(IReadOnlyList<CheckResult> Checks,
-    IReadOnlyList<StatisticLine> DerivedStatistics, IReadOnlyList<PlayerStint> Stints);
+    IReadOnlyList<StatisticLine> DerivedStatistics, IReadOnlyList<PlayerStint> Stints)
+{
+    public IReadOnlyList<LineupEvidence> ReferenceLineups { get; init; } = [];
+}
 
 public interface IBasketballValidator
 {

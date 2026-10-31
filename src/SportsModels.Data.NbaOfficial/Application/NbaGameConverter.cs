@@ -21,6 +21,7 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
     private string snapshot = "";
     private string homeSource = "";
     private string awaySource = "";
+    private AlternatePlayByPlay? alternate;
 
     private sealed record Person(long Id, string SourceId, string Team, string Name, HashSet<string> Aliases);
 
@@ -45,6 +46,7 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
             teams[team] = Resolve("Team", team, $"Game {gameId} side metadata in {snapshot}");
         }
         var internalGame = Resolve("Game", gameId, $"NBA game key; home={homeSource}; away={awaySource}; snapshot={snapshot}");
+        alternate = references.AlternatePlayByPlay.Count == 1 ? references.AlternatePlayByPlay[0] : null;
         BuildPeople(references);
         var events = new List<BasketballPlayByPlayEvent>();
         var dispositions = new List<SourceRowDisposition>();
@@ -104,6 +106,7 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
             }
         }
         AttachCredits(events, dispositions);
+        CompareSubstitutionFeeds(events);
         LinkEvents(events, dispositions.Where(r => r.Disposition == "Unresolved").Select(r => r.RowIndex + 1).ToHashSet());
         var explainedFields = evidence.Select(e => (e.EventId, e.FieldName)).ToHashSet();
         foreach (var item in events) { ExplainFields(item, item.SequenceNumber - 1, explainedFields); }
@@ -120,6 +123,10 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
         };
         var (statistics, lineups) = references.Observations(s => teams.GetValueOrDefault(s) is var t && t != 0 ? t : null,
             s => players.GetValueOrDefault(s)?.Id, ordinary);
+        var replay = AlternateLineupReplay.Build(references, ordinary,
+            s => teams.TryGetValue(s, out var t) ? t : null, s => players.GetValueOrDefault(s)?.Id);
+        lineups.AddRange(replay.Lineups);
+        checks.AddRange(replay.Checks);
         checks.AddRange(references.Checks);
         checks.AddRange(NbaSourceDiagnostics.PeriodBreaks(rows, references, ordinary));
         var scoreObservations = rows.Select((r, i) => new ScoreObservation(i + 1,
@@ -136,7 +143,9 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
                 .Concat(checks.Where(c => c.Code == "IDENTITY.NAME" && c.EventId is not null)
                     .Select(c => new CoverageGap(events.Single(e => e.EventId == c.EventId).SequenceNumber, ["AST"], false, false, "Unresolved described assist credit"))).ToArray(),
             FoulCounts = FoulCounts(events),
-            TeamFouls = TeamFouls(events)
+            TeamFouls = TeamFouls(events),
+            MinutesToleranceSeconds = alternate is null ? null : 0.500001,
+            MinutesPrecisionEvidence = "Displayed full-game minutes compared within nearest-second rounding (±0.5s); no widening to absorb disagreement."
         };
         checks.Add(new("TIME.UTC", CheckStatus.NotAssessable,
             "Description wall clocks are minute precision; game date/timezone/midnight evidence is not verified. OccurredAtUtc remains null."));
@@ -176,6 +185,14 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
                 RegisterPlayer(player.Text("personId"), team.Text("teamId"),
                     (player.Text("firstName") + " " + player.Text("familyName")).Trim(),
                     [player.Text("familyName"), player.Text("nameI")]);
+            }
+        }
+        foreach (var row in alternate?.Rows ?? [])
+        {
+            if (row.Text("actionType") == "substitution" && teams.ContainsKey(row.Key("teamId")))
+            {
+                RegisterPlayer(row.Key("personId"), row.Key("teamId"), row.Text("playerNameI"),
+                    [row.Text("playerName"), row.Text("playerNameI")]);
             }
         }
         foreach (var row in rows)
@@ -297,7 +314,8 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
         if (type == "Substitution")
         {
             var match = Regex.Match(description, @"^SUB: (.+) FOR (.+)$");
-            var incoming = match.Success ? ByName(match.Groups[1].Value, person?.Team, index) : null;
+            var incoming = match.Success ? AlternateIncoming(row, match.Groups[1].Value, index, id)
+                ?? ByName(match.Groups[1].Value, person?.Team, index) : null;
             if (team is null || player is null || incoming is null) { return null; }
             return new SubstitutionEvent(id, sequence, clock, null, team.Value, player.Value, incoming.Id);
         }
@@ -590,6 +608,50 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
         if (matches.Length == 1) { return matches[0]; }
         Add("IDENTITY.NAME", CheckStatus.NotAssessable, row, $"Name '{name}' has {matches.Length} compatible game-roster matches; not guessed.");
         return null;
+    }
+
+    private Person? AlternateIncoming(JsonElement source, string name, int index, long eventId)
+    {
+        if (alternate is null) { return null; }
+        var matching = alternate.Rows.Select((r, i) => (Row: r, Index: i)).Where(x =>
+            x.Row.Text("actionType") == "substitution" && x.Row.Key("teamId") == source.Key("teamId")
+            && x.Row.Number("period") == source.Number("period") && x.Row.Text("clock") == source.Text("clock")).ToArray();
+        var outgoing = matching.Where(x => x.Row.Text("subType") == "out" && x.Row.Key("personId") == source.Key("personId")
+            && x.Row.Text("actionNumber") == source.Text("actionNumber")).ToArray();
+        if (outgoing.Length != 1) { return null; }
+        var incoming = matching.Where(x => x.Row.Text("subType") == "in"
+            && players.TryGetValue(x.Row.Key("personId"), out var p) && p.Aliases.Contains(SourceJson.Normalize(name))).ToArray();
+        if (incoming.Length != 1) { return null; }
+        var person = players[incoming[0].Row.Key("personId")];
+        BasketballSourceRowReference Reference((JsonElement Row, int Index) item) =>
+            new(BasketballDataSource.NbaOfficial, alternate.SnapshotId, item.Index, null, item.Row.Text("actionNumber"));
+        evidence.Add(new(eventId, "PlayerInId", BasketballEvidenceKind.Linked,
+            [Row(index), Reference(outgoing[0]), Reference(incoming[0])],
+            "Matched official alternate outgoing action number, actor, team, period and clock; unique explicit incoming ID matching the described game-roster alias. No simultaneous pairing is guessed."));
+        return person;
+    }
+
+    private void CompareSubstitutionFeeds(List<BasketballPlayByPlayEvent> events)
+    {
+        if (alternate is null)
+        {
+            checks.Add(new("REFERENCE.SUBSTITUTION_COVERAGE", CheckStatus.NotAssessable, "No unique matched alternate PBP snapshot; cross-feed completeness unavailable."));
+            return;
+        }
+        foreach (var (row, index) in alternate.Rows.Select((r, i) => (r, i)).Where(x => x.r.Text("actionType") == "substitution" && x.r.Text("subType") == "out"))
+        {
+            var primary = rows.Select((r, i) => (Row: r, Index: i)).Where(x => x.Row.Text("actionType") == "Substitution"
+                && x.Row.Key("personId") == row.Key("personId") && x.Row.Key("teamId") == row.Key("teamId")
+                && x.Row.Number("period") == row.Number("period") && x.Row.Text("clock") == row.Text("clock")
+                && x.Row.Text("actionNumber") == row.Text("actionNumber")).ToArray();
+            var mapped = primary.Length == 1 ? events.OfType<SubstitutionEvent>().SingleOrDefault(e => e.SequenceNumber == primary[0].Index + 1) : null;
+            checks.Add(new("REFERENCE.SUBSTITUTION_COVERAGE", primary.Length == 1 ? CheckStatus.Pass : CheckStatus.Fail,
+                primary.Length == 1 ? "Alternate outgoing substitution has one exact primary team/actor/period/clock/action-number counterpart. Incoming participant checked separately."
+                    : "Alternate outgoing substitution has no unique exact primary counterpart. Snapshot disagreement/coverage gap; not an automatic source repair or proof of which revision is correct.",
+                mapped?.EventId, row.Number("period"), teams.TryGetValue(row.Key("teamId"), out var team) ? team : null,
+                Severity: primary.Length == 1 ? null : FindingSeverity.Warning, SourceRows: primary.Select(x => x.Index).ToArray())
+            { ReferenceRows = [new(BasketballDataSource.NbaOfficial, alternate.SnapshotId, index, null, row.Text("actionNumber"))] });
+        }
     }
 
     private void Add(string code, CheckStatus status, int row, string reason, long? id = null) =>

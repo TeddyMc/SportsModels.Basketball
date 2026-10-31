@@ -8,8 +8,10 @@ internal sealed class ReferenceAcquisition(INbaReferenceSource source, IReferenc
 {
     public async Task<IngestionResult> RunAsync(ReferenceAcquisitionRequest request, CancellationToken cancellationToken = default)
     {
+        var started = DateTime.UtcNow;
+        if (request.RequestDelay < TimeSpan.Zero || request.RequestDelay > TimeSpan.FromMinutes(1)) { throw new ArgumentException("Request delay must be between zero and one minute."); }
         if (request.Limit is <= 0) { throw new ArgumentException("Limit must be positive."); }
-        if (request.Endpoints is not null && request.Endpoints.Any(e => e is not ("boxscoretraditionalv3" or "boxscoretraditionalv3-range" or "boxscoretraditionalv3-opening" or "boxscoresummaryv2" or "commonteamroster")))
+        if (request.Endpoints is not null && request.Endpoints.Any(e => e is not ("boxscoretraditionalv3" or "boxscoretraditionalv3-full" or "boxscoretraditionalv3-range" or "boxscoretraditionalv3-opening" or "boxscoresummaryv2" or "commonteamroster" or "gamerotation" or "liveplaybyplay" or "liveboxscore")))
         { throw new ArgumentException("Unknown reference endpoint selection."); }
         var failures = new List<IngestionFailure>();
         var games = new Dictionary<string, int>();
@@ -49,6 +51,10 @@ internal sealed class ReferenceAcquisition(INbaReferenceSource source, IReferenc
         }
         var downloaded = 0;
         var skipped = 0;
+        var completed = 0;
+        var consecutiveFailures = 0;
+        var halted = false;
+        var total = games.Take(request.Limit ?? int.MaxValue).Count();
         foreach (var (id, periods) in games.Take(request.Limit ?? int.MaxValue))
         {
             foreach (var (endpoint, period) in Enumerable.Range(0, Math.Min(periods, 20) + 1)
@@ -56,27 +62,47 @@ internal sealed class ReferenceAcquisition(INbaReferenceSource source, IReferenc
                 .Concat(Enumerable.Range(1, Math.Min(periods, 20)).Select(p => ("boxscoretraditionalv3-range", p)))
                 .Concat(Enumerable.Range(1, Math.Min(periods, 20)).Select(p => ("boxscoretraditionalv3-opening", p)))
                 .Append(("boxscoresummaryv2", 0))
+                .Append(("gamerotation", 0))
+                .Append(("liveplaybyplay", 0))
+                .Append(("liveboxscore", 0))
                 .Concat(gameTeams[id].Select(t => ("commonteamroster-" + t, 0))))
             {
-                if (request.Endpoints is not null && !request.Endpoints.Contains(endpoint.StartsWith("commonteamroster-", StringComparison.Ordinal) ? "commonteamroster" : endpoint)) { continue; }
+                var selectedEndpoint = endpoint.StartsWith("commonteamroster-", StringComparison.Ordinal) ? "commonteamroster" : endpoint;
+                var fullGame = endpoint == "boxscoretraditionalv3" && period == 0 && request.Endpoints?.Contains("boxscoretraditionalv3-full") == true;
+                if (request.Endpoints is not null && !request.Endpoints.Contains(selectedEndpoint) && !fullGame) { continue; }
                 cancellationToken.ThrowIfCancellationRequested();
                 var resource = $"{id}/{endpoint}/p{period}";
                 try
                 {
+                    if (request.SkipExisting && await store.ExistsAsync(request.OutputDirectory, id, endpoint, period, cancellationToken))
+                    { skipped++; continue; }
+                    if (request.RequestDelay > TimeSpan.Zero) { await Task.Delay(request.RequestDelay, cancellationToken); }
                     var bytes = await source.DownloadAsync(endpoint, id, period, cancellationToken);
                     if (await store.SaveAsync(request.OutputDirectory, id, endpoint, period, bytes, cancellationToken)) { downloaded++; }
                     else { skipped++; }
+                    consecutiveFailures = 0;
                 }
                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
                     failures.Add(new(resource, FailureKind.Timeout, "NBA reference request timed out."));
+                    consecutiveFailures++;
                 }
                 catch (Exception exception) when (exception is HttpRequestException or JsonException or IOException or UnauthorizedAccessException)
                 {
                     failures.Add(new(resource, exception is HttpRequestException ? FailureKind.Http : FailureKind.Storage, exception.Message));
+                    consecutiveFailures++;
                 }
+                if (consecutiveFailures >= 5) { halted = true; break; }
             }
+            completed++;
+            request.Progress?.Report(new(completed, total, id, downloaded, skipped, failures.Count));
+            if (halted) { break; }
         }
-        return new(games.Take(request.Limit ?? int.MaxValue).Count(), downloaded, skipped, failures);
+        var result = new IngestionResult(total, downloaded, skipped, failures);
+        var runId = started.ToString("yyyyMMddTHHmmssfffZ", System.Globalization.CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N")[..8];
+        await store.SaveReportAsync(request.OutputDirectory, new(runId, started, DateTime.UtcNow,
+            Path.GetFullPath(request.InputDirectory), request.Endpoints, request.SkipExisting, result)
+        { CompletedGames = completed, HaltedAfterRepeatedFailures = halted }, cancellationToken);
+        return result;
     }
 }

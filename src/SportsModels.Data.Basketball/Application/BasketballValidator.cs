@@ -16,7 +16,8 @@ public sealed class BasketballValidator : IBasketballValidator
         var statistics = GameStatistics.Derive(game, context, stints, checks);
         CheckReferences(statistics, context, checks);
         SequenceDiagnostics.Check(game, context, checks);
-        return new(checks.Select(c => c.Status == CheckStatus.Fail ? c : c with { Severity = null }).ToArray(), statistics, stints);
+        return new(checks.Select(c => c.Status == CheckStatus.Fail ? c : c with { Severity = null }).ToArray(), statistics, stints)
+        { ReferenceLineups = context.OpeningLineups };
     }
 
     private static void CheckIdentities(BasketballGamePlayByPlay game, List<CheckResult> checks)
