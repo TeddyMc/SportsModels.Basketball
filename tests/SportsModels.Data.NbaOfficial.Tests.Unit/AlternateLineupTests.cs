@@ -104,5 +104,22 @@ public sealed class AlternateLineupTests
         Assert.That(result.Checks.Single(c=>c.Code=="REFERENCE.ALTERNATE_FINAL_FIVE" && c.EntityId==10).Status,Is.EqualTo(expected));
         Assert.That(result.Lineups.Any(l=>l.TeamId==10),Is.False);
     }
+
+    [Test]
+    public void AlternateActorContradictionDoesNotCascadeIntoMoreDefiniteFailures()
+    {
+        var references=Bundle(false);
+        var original=references.AlternatePlayByPlay[0];
+        var rows=original.Rows.ToList();
+        rows.InsertRange(1,new[]{
+            JsonSerializer.SerializeToElement(new {period=1,clock="PT11M00.00S",teamId=10,personId=99,actionType="2pt",actionNumber=10}),
+            JsonSerializer.SerializeToElement(new {period=1,clock="PT10M00.00S",teamId=10,personId=99,actionType="2pt",actionNumber=11})});
+        references.AlternatePlayByPlay[0]=original with {Rows=rows.ToArray()};
+        var result=AlternateLineupReplay.Build(references,true,s=>long.Parse(s),s=>long.Parse(s));
+        var actors=result.Checks.Where(c=>c.Code=="REFERENCE.ALTERNATE_ACTOR").ToArray();
+        Assert.That(actors.Select(c=>c.Status),Is.EqualTo(new[]{CheckStatus.Fail,CheckStatus.NotAssessable}));
+        Assert.That(result.Checks.Where(c=>c.Code=="REFERENCE.ALTERNATE_MINUTES" && c.EntityId is >=10 and <20)
+            .All(c=>c.Status==CheckStatus.NotAssessable),Is.True);
+    }
 }
 

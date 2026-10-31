@@ -82,9 +82,10 @@ internal static class AlternateLineupReplay
                 var subs = group.Where(i => alternate.Rows[i].Text("actionType") == "substitution" && alternate.Rows[i].Text("teamId") == key).ToArray();
                 if (!ApplyBatch(lineup, subs.Select(i => alternate.Rows[i])))
                 {
+                    var previouslyReliable = reliable[key];
                     reliable[key] = false;
-                    checks.Add(Check("REFERENCE.ALTERNATE_SUBSTITUTION", CheckStatus.Fail,
-                        $"Alternate substitution net membership for team {key} contradicts the prior five; no lineup repair.", alternate, subs, period));
+                    checks.Add(Check("REFERENCE.ALTERNATE_SUBSTITUTION", previouslyReliable ? CheckStatus.Fail : CheckStatus.NotAssessable,
+                        $"Alternate substitution net membership for team {key} disagrees with provisional replay; prior state reliable={previouslyReliable}. Unknown prior state cannot establish another substitution contradiction. No lineup repair.", alternate, subs, period));
                 }
                 if (lineup.Count != 5) { reliable[key] = false; }
                 if (subs.Length == 0)
@@ -96,9 +97,10 @@ internal static class AlternateLineupReplay
                         if (row.Text("teamId") == key && actor != "" && row.Text("actionType") is "2pt" or "3pt" or "rebound" or "turnover"
                             && !lineup.Contains(actor))
                         {
+                            var previouslyReliable = reliable[key];
                             reliable[key] = false;
-                            checks.Add(Check("REFERENCE.ALTERNATE_ACTOR", CheckStatus.Fail,
-                                $"Required alternate actor {actor} is outside team {key}'s replayed five.", alternate, [index], period));
+                            checks.Add(Check("REFERENCE.ALTERNATE_ACTOR", previouslyReliable ? CheckStatus.Fail : CheckStatus.NotAssessable,
+                                $"Alternate actor {actor} is outside team {key}'s provisional five; prior state reliable={previouslyReliable}. Unknown replay cannot establish an off-court contradiction.", alternate, [index], period));
                         }
                     }
                 }
