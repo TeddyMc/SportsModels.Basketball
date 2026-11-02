@@ -14,5 +14,9 @@ public sealed class PlayByPlayModule : Module
         builder.RegisterType<NbaHttpSource>().As<INbaSource>();
         builder.RegisterType<RawJsonStore>().As<IRawJsonStore>();
         builder.RegisterType<PlayByPlayIngestion>().As<IPlayByPlayIngestion>();
+        builder.RegisterType<NbaReferenceSource>().As<INbaReferenceSource>();
+        builder.RegisterType<ReferenceStore>().As<IReferenceStore>();
+        builder.RegisterType<ReferenceAcquisition>().As<INbaReferenceAcquisition>();
+        builder.RegisterType<LocalGameInventoryReader>().As<ILocalGameInventory>();
     }
 }
