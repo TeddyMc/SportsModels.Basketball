@@ -2,6 +2,34 @@
 
 The converter consumes local Stats `playbyplayv3` snapshots and the unified basketball contracts. Acquisition and conversion are separate commands. Scope and decisions belong to [issue #13](https://github.com/TeddyMc/SportsModels.Basketball/issues/13).
 
+## Acquire a complete input bundle
+
+Use the normal acquisition command to download primary Stats PBP together with full-game Stats traditional boxscores, CDN PBP and CDN boxscores:
+
+```powershell
+dotnet run --project src/SportsModels.Data.NbaOfficial.Host -- acquire 2021-10-01 2026-06-30 C:/Data/Basketball/NbaOfficial
+```
+
+The root contains `stats/playbyplayv3`, `references`, and `_acquisition`. Subsequent conversion uses those first two paths. Dates are inclusive, must end before today UTC and use the NBA game date. A continuous multi-year range includes any summer games discovered by the official scoreboard; inspect competition coverage rather than assuming only regular-season games. [Issue #22](https://github.com/TeddyMc/SportsModels.Basketball/issues/22) owns the combined five-season audit and acquisition/process refinements.
+
+One invocation includes sequential five-second request pacing, up to six attempts per transiently failing resource, a thirty-second retry delay and a thirty-minute cooldown after three consecutive transient failures. There are at most twelve cooldowns per invocation. Timeouts, connection failures, HTTP 403/408/429 and 5xx can recover; other HTTP failures, malformed/empty payloads, damaged retained data and storage errors remain explicit failures. The final report records remaining gaps; unavailable upstream data cannot be guaranteed. A stalled or incomplete run can be resumed with the identical command. Ctrl+C cancels request delays and cooldowns as well as network requests.
+
+`_acquisition/runs` contains bounded JSONL progress and a JSON completion report. The summary counts expected/discovered dates, discovered games and four expected resources per game, downloaded/skipped files and remaining failures. Exit zero requires complete discovery and all expected resources; an early halt or any gap returns one. Invalid setup returns two and user cancellation returns 130. A failed discovery date never counts as an empty successful day. Download completion is separate from conversion/validation success.
+
+Successful per-date discovery metadata (including empty days) is cached with its content hash. Retained PBP and reference snapshots must match the requested game and have nonempty action/roster schemas. Primary hashes are recorded on first verified adoption and checked on later resumes; reference hashes come from content-addressed filenames. Corrupt or ambiguous retained files are reported and left untouched. Raw responses are never reserialized or overwritten. Cached discovery describes that retained snapshot; use a fresh root for an intentional source refresh. Run one acquisition per root at a time.
+
+Applications resolve `INbaDataAcquisition` through `PlayByPlayModule` and call `RunAsync(new DataAcquisitionRequest(start, end, root), token)`. The request exposes pacing, retry/cooldown limits and `IProgress<DataAcquisitionProgress>` for a caller's single action/button and status display. `DataAcquisitionResult.Complete` reflects acquisition coverage only. Conversion remains an independent local-data operation.
+
+## Local converted datasets
+
+Downstream tasks should begin with the local index `C:/Data/Basketball/converted/catalog.json` and [issue #22](https://github.com/TeddyMc/SportsModels.Basketball/issues/22). The catalog identifies the deliberately selected immutable run for each season and its coverage status. It is maintained when a run is published for downstream inspection; it is not advanced just because a newer directory exists. Raw data and generated outputs are local and are not committed to Git.
+
+The five-season diagnostic outputs currently live under `C:/Data/Basketball/converted/five-season-20261102/<run-id>/`. Read canonical unified game JSON from each selected run's `games/`. Its matching `reports/`, `games.csv`, `checks.csv`, `findings.csv`, `substitutions.csv` and `manifest.json` describe uncertainty, assessment denominators, source lineage and retained inputs. Use one run's data and evidence together; keep its registry backup and retained snapshots. Modelling consumers do not need to parse raw provider JSON to use the canonical events.
+
+These outputs are provisional diagnostics. Primary PBP is retained for all discovered games, but older-season supporting references and the final cross-season review remain incomplete. Zero structural conversion failures do not certify clean data or complete on-court history. The catalog records those limitations; #15 owns any subsequently agreed cleaned subset. Refresh the catalog with actual coverage when a replacement run is ready for inspection, preserving old runs.
+
+## Convert and inspect
+
 ```powershell
 dotnet run --project src/SportsModels.Data.NbaOfficial.Host -- references C:/Data/Basketball/NbaOfficial/stats/playbyplayv3 C:/Data/Basketball/NbaOfficial/stats '0022500315,0022500173'
 dotnet run --project src/SportsModels.Data.NbaOfficial.Host -- references C:/Data/Basketball/NbaOfficial/stats/playbyplayv3 C:/Data/Basketball/NbaOfficial/stats all boxscoretraditionalv3 2025-12-01 2025-12-01

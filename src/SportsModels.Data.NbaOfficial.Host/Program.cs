@@ -4,7 +4,7 @@ using SportsModels.Data.NbaOfficial.Autofac;
 using SportsModels.Data.NbaOfficial.Contracts;
 using SportsModels.Data.Basketball.Infrastructure;
 
-if (args.Length > 0 && args[0] is "convert" or "references" or "references-resume" or "backup-registry")
+if (args.Length > 0 && args[0] is "acquire" or "convert" or "references" or "references-resume" or "backup-registry")
 {
     return await RunDataCommand(args);
 }
@@ -71,6 +71,20 @@ static async Task<int> RunDataCommand(string[] arguments)
             return 0;
         }
         var builder = new ContainerBuilder();
+        if (arguments[0] == "acquire" && arguments.Length is 3 or 4)
+        {
+            builder.RegisterModule<PlayByPlayModule>();
+            using var container = builder.Build();
+            var request = new DataAcquisitionRequest(
+                DateOnly.ParseExact(arguments[1], "yyyy-MM-dd", CultureInfo.InvariantCulture),
+                DateOnly.ParseExact(arguments[2], "yyyy-MM-dd", CultureInfo.InvariantCulture),
+                arguments.Length == 4 ? arguments[3] : "C:/Data/Basketball/NbaOfficial")
+            { Progress = new AcquisitionProgress() };
+            var result = await container.Resolve<INbaDataAcquisition>().RunAsync(request, cancellation.Token);
+            Console.WriteLine($"Complete={result.Complete} Dates={result.DiscoveredDates}/{result.ExpectedDates} Games={result.DiscoveredGames} Downloaded={result.Downloaded} Skipped={result.Skipped} ExpectedResources={result.ExpectedResources} Failures={result.Failures.Count} Halted={result.Halted}");
+            Console.WriteLine(result.ReportPath);
+            return result.Complete ? 0 : 1;
+        }
         if (arguments[0] is "references" or "references-resume" && arguments.Length is >= 3 and <= 7)
         {
             builder.RegisterModule<PlayByPlayModule>();
@@ -99,7 +113,8 @@ static async Task<int> RunDataCommand(string[] arguments)
             Console.WriteLine(result.RunDirectory);
             return result.Failed == 0 ? 0 : 1;
         }
-        Console.Error.WriteLine("Usage: references|references-resume <pbp-directory> <reference-directory> [game-ids|all] [endpoints|all] [start:yyyy-MM-dd] [end:yyyy-MM-dd]\n"
+        Console.Error.WriteLine("Usage: acquire <start:yyyy-MM-dd> <end:yyyy-MM-dd> [root-directory]\n"
+            + "       references|references-resume <pbp-directory> <reference-directory> [game-ids|all] [endpoints|all] [start:yyyy-MM-dd] [end:yyyy-MM-dd]\n"
             + "       convert <pbp-directory> <reference-directory> <output-directory> <registry.sqlite> [comma-separated-game-ids]\n"
             + "       backup-registry <registry.sqlite> <new-backup.sqlite>");
         return 2;
@@ -119,4 +134,10 @@ internal sealed class ReferenceProgress : IProgress<ReferenceAcquisitionProgress
         { Console.WriteLine($"Progress={value.CompletedGames}/{value.TotalGames} Last={value.GameId} Downloaded={value.Downloaded} Skipped={value.Skipped} Failures={value.Failures}"); }
         previousFailures = value.Failures;
     }
+}
+
+internal sealed class AcquisitionProgress : IProgress<DataAcquisitionProgress>
+{
+    public void Report(DataAcquisitionProgress value) =>
+        Console.WriteLine($"{value.Utc:O} {value.Stage} {value.Resource} {value.Detail}");
 }

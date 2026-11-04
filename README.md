@@ -7,13 +7,17 @@ Local conversion, reference acquisition, persistent identities and diagnostic re
 Initial implementation of [Issue #2](https://github.com/TeddyMc/SportsModels.Basketball/issues/2).
 Requires the .NET 8 SDK and HTTPS access to NuGet and `stats.nba.com`.
 
+The normal acquisition entry point downloads Stats PBP and the three standard validation references in one resumable invocation. It includes pacing, bounded retries and automatic cooldowns; see [acquisition and conversion usage](docs/NBA_CONVERSION.md). Download completion does not establish basketball data quality.
+
 ```sh
 dotnet build SportsModels.Basketball.sln
 dotnet test SportsModels.Basketball.sln --no-build
-dotnet run --project src/SportsModels.Data.NbaOfficial.Host -- 2025-10-02 2026-06-30
+dotnet run --project src/SportsModels.Data.NbaOfficial.Host -- acquire 2025-10-02 2026-06-30
 ```
 
-The positional arguments are start date, end date (both inclusive, `yyyy-MM-dd`), and an optional output directory. Output defaults to `C:\Data\Basketball\NbaOfficial\stats\playbyplayv3\`, named after the upstream API endpoint and version. Supply a third argument to override it. The end must be before today in UTC. Discovery uses the NBA's game date, rather than converting dates to the machine's time zone. Exit codes: `0` complete without failures, `1` one or more discovery/download/storage failures, `2` invalid arguments/setup, `130` user cancellation. Each failure identifies its date or game ID and category. The final summary counts unique discovered final games, downloaded files, skipped files, and failures. Failures include discovery dates as well as games, so they are not a count of failed games alone.
+`acquire` takes inclusive start/end dates (`yyyy-MM-dd`) and an optional root directory, defaulting to `C:\Data\Basketball\NbaOfficial`. It writes PBP under `stats/playbyplayv3`, supporting snapshots under `references`, and verified discovery metadata, input hashes and run reports under `_acquisition`. Repeating the same command resumes retained data. The end must be before today UTC. Exit codes: `0` complete acquisition, `1` remaining gaps or exhausted recovery budget, `2` invalid arguments/setup, `130` user cancellation. Reports disclose failed discovery dates separately from failed game resources.
+
+The earlier PBP-only invocation remains available: `dotnet run --project src/SportsModels.Data.NbaOfficial.Host -- 2025-10-02 2026-06-30 [pbp-directory]`. It defaults to `C:\Data\Basketball\NbaOfficial\stats\playbyplayv3`, performs syntax-only PBP checks and does not include the integrated retry/cooldown flow.
 
 ## Official sources
 
@@ -24,15 +28,15 @@ Both endpoints use native C# `HttpClient` with the supplied Chrome request heade
 
 New downloads contain the Stats `playbyplayv3` response as returned by the NBA. No CDN schema is assumed or enforced, and raw responses are not converted. Use a fresh output directory when switching endpoints: reruns skip existing valid JSON without checking its source or schema.
 
-The raw PBP acquisition command parses discovery metadata needed to select completed games and checks downloaded PBP for JSON syntax only. The separate local conversion command parses basketball actions and produces diagnostics. A syntactically valid raw response is not evidence of basketball data completeness.
+The legacy PBP-only command checks downloaded PBP for JSON syntax only. `acquire` additionally verifies game identity and nonempty PBP/reference schemas. The separate local conversion command parses basketball actions and produces diagnostics. A syntactically valid raw response is not evidence of basketball data completeness.
 
 ## Storage and reruns
 
 Each successful response body is saved as `<output-directory>/AWAY@HOME_yyyyMMdd_<gameId>.json`, for example `HOU@IND_20260202_0022500713.json`, preserving its bytes, whitespace, encoding and property order. Date is the queried NBA scoreboard date; away/home codes are upstream uppercase alphanumeric abbreviations. Filename components are validated to prevent path traversal. JSON is never reserialized. Writes use a unique temporary file in the same directory followed by a non-overwriting rename, preventing a partially written destination. Temporary files are removed on ordinary errors/cancellation; an abrupt process termination can leave a `.tmp` file, which reruns ignore.
 
-An existing syntactically valid JSON file is skipped without fetching play-by-play again. An invalid or unreadable existing file produces a failure and is left untouched. Inspect and explicitly move/delete it before retrying. A concurrent destination creation causes a storage failure rather than overwriting another run. Existing files are not checked for upstream revisions, correct game identity or semantic completeness.
+In the legacy PBP-only command, an existing syntactically valid JSON file is skipped without fetching play-by-play again; it is not checked for upstream revisions, game identity or semantic completeness. The normal `acquire` command verifies identity, basic schema and retained hashes. An invalid or unreadable retained file is reported and left untouched. A concurrent destination creation causes a storage failure rather than overwriting another run.
 
-HTTP/transport errors, 30-second request timeouts, invalid JSON and storage failures are reported and counted. Processing continues for independent dates/games; caller cancellation propagates. There are no automatic retries, parallel downloads or scheduled runs. Rerun to retry failed items; already successful items will be skipped. A discovery failure means the run's discovered count is incomplete. Empty schedules and days with no final games are valid zero-game results.
+HTTP/transport errors, 30-second request timeouts, invalid JSON and storage failures are reported and counted. The legacy PBP-only command has no automatic retries; `acquire` includes recovery as documented in the usage guide. Downloads are sequential and no scheduler is activated. A discovery failure means the run's discovered count is incomplete. Empty schedules and days with no final games are valid zero-game results.
 
 ## Structure
 
