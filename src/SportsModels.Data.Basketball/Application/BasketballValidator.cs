@@ -12,12 +12,26 @@ public sealed class BasketballValidator : IBasketballValidator
         CheckTime(game, context, checks);
         CheckScores(game, context, checks);
         FoulDiagnostics.Check(game, context, checks);
-        var stints = LineupDiagnostics.Reconstruct(game, context, checks);
-        var statistics = GameStatistics.Derive(game, context, stints, checks);
+        context = OpeningMembershipInference.Add(game, context, checks);
+        LineupDiagnostics.Reconstruct(game, context, checks);
+        var openingSeeds = context.OpeningMemberships.Where(m => m.Origin == MinuteEvidenceKind.InferredBreakChanges && m.FirstEventId is not null)
+            .Select(m => (m.FirstEventId, Player: (long?)m.PlayerId)).ToHashSet();
+        for (var i = 0; i < checks.Count; i++)
+            if (checks[i].Code == "LINEUP.ACTOR" && checks[i].Status == CheckStatus.Pass && openingSeeds.Contains((checks[i].EventId, checks[i].EntityId)))
+                checks[i] = checks[i] with { Status = CheckStatus.NotAssessable, Severity = null,
+                    Evidence = "This actor supplied its own opening-membership inference; agreement is not an independent validation pass." };
+        var reconstruction = PlayerMinuteReconstruction.Reconstruct(game, context, checks);
+        var stints = reconstruction.Stints;
+        var statistics = GameStatistics.Derive(game, context, stints, checks, reconstruction.Periods);
         CheckReferences(statistics, context, checks);
         SequenceDiagnostics.Check(game, context, checks);
         return new(checks.Select(c => c.Status == CheckStatus.Fail ? c : c with { Severity = null }).ToArray(), statistics, stints)
-        { ReferenceLineups = context.OpeningLineups };
+        {
+            ReferenceLineups = context.OpeningLineups,
+            PlayerMinutes = PlayerMinuteReconstruction.Observations(reconstruction.Periods, checks, context),
+            AlternateStints = context.AlternateStints,
+            OpeningMemberships = context.OpeningMemberships
+        };
     }
 
     private static void CheckIdentities(BasketballGamePlayByPlay game, List<CheckResult> checks)
