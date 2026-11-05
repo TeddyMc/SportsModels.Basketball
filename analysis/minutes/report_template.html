@@ -9,7 +9,7 @@ body{font:15px system-ui;margin:24px auto;max-width:1250px;padding:0 20px;backgr
 <p>All parameters minimise training MAE in minutes and stay frozen during validation. Earlier completed validation games can supply history for later validation predictions. No likelihood is fitted. Missing observations remain unavailable; comparison warnings are retained.</p>
 <div class="scroll"><table><thead><tr><th>Model</th><th>Training scored games</th><th>Training MAE (min)</th><th>Validation scored games</th><th>Validation MAE (min)</th></tr></thead><tbody id="comparison"></tbody></table></div>
 <p id="coverage-note" class="muted"></p>
-<details><summary>Per-season data coverage</summary><p>Older runs have many usable minute reconstructions without starter/bench labels. These cannot yet train a role-conditioned model. Unknown status is not silently assigned to bench.</p><table><thead><tr><th>Season</th><th>Games</th><th>Known active</th><th>Unknown eligibility/role</th><th>Inactive</th><th>Scored player-games</th></tr></thead><tbody id="season-coverage"></tbody></table></details>
+<details><summary>Per-season data coverage</summary><p>Counts reflect the selected conversion runs. Genuine unknown eligibility and starting roles remain explicit; unknown status is never assigned to bench. Scoring also requires an actual minute total and earlier same-role history.</p><table><thead><tr><th>Season</th><th>Games</th><th>Known active</th><th>Unknown eligibility</th><th>Active, role unknown</th><th>Inactive</th><th>Scored player-games</th></tr></thead><tbody id="season-coverage"></tbody></table></details>
 <div id="model-tabs" role="tablist" aria-label="Model type"></div>
 <style>#model-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0}#model-tabs button{font:inherit;border:1px solid #8295a7;border-radius:6px;background:white;cursor:pointer}#model-tabs button[aria-selected=true]{background:#173c59;color:white}select{font:inherit;padding:8px}#model-title{margin-bottom:8px}</style>
 <h2 id="model-title"></h2>
@@ -194,8 +194,9 @@ data.Models.forEach((model,index)=>{
 $('coverage-note').textContent=`${data.Summary.Games.toLocaleString()} regular-season games read. Inactive/unknown eligibility excluded: ${data.Summary.ExcludedRows.toLocaleString()} represented player-game rows; see population-audit.json and data-quality details. The table scores all available actual/prediction pairs, including short histories, with counts shown. No validation outcomes were used to fit parameters.`;
 for (const source of data.Summary.Sources) {
     const scored = data.Rows.reduce((count,row,index)=>count+(row.Observation.Season === source.Season && row.Observation.RegulationSeconds != null && data.Models[0].PredictionsMinutes[index] != null ? 1:0),0);
+    const unknownRole = data.Rows.filter(row=>row.Observation.Season === source.Season && row.Observation.Started == null).length;
     const tr=document.createElement('tr');
-    for (const value of [source.Season,source.Games,source.Counts['Eligibility:Active']||0,source.Counts['Eligibility:Unknown']||0,source.Counts['Eligibility:Inactive']||0,scored]) {
+    for (const value of [source.Season,source.Games,source.Counts['Eligibility:Active']||0,source.Counts['Eligibility:Unknown']||0,unknownRole,source.Counts['Eligibility:Inactive']||0,scored]) {
         const td=document.createElement('td');td.textContent=typeof value === 'number'?value.toLocaleString():value;tr.append(td);
     }
     $('season-coverage').append(tr);
