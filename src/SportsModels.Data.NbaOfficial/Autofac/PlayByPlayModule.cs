@@ -18,5 +18,8 @@ public sealed class PlayByPlayModule : Module
         builder.RegisterType<ReferenceStore>().As<IReferenceStore>();
         builder.RegisterType<ReferenceAcquisition>().As<INbaReferenceAcquisition>();
         builder.RegisterType<LocalGameInventoryReader>().As<ILocalGameInventory>();
+        builder.RegisterType<AcquisitionWorkspace>().As<IAcquisitionWorkspace>();
+        builder.RegisterType<AcquisitionDelay>().As<IAcquisitionDelay>();
+        builder.RegisterType<NbaDataAcquisition>().As<INbaDataAcquisition>();
     }
 }

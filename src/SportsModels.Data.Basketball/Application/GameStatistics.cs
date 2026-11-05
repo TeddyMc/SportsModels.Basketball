@@ -18,7 +18,7 @@ internal static class GameStatistics
     }
 
     internal static List<StatisticLine> Derive(BasketballGamePlayByPlay game, GameValidationContext context,
-        List<PlayerStint> stints, List<CheckResult> checks)
+        List<PlayerStint> stints, List<CheckResult> checks, IReadOnlyList<PlayerPeriodMinutes> playerMinutes)
     {
         var periods = game.Events.Select(e => BasketballValidator.Period(e.Clock)).Distinct().Append(0).Order().ToArray();
         var players = game.HomeTeam.Players.Select(p => (p.PlayerId, game.HomeTeam.TeamId))
@@ -112,8 +112,16 @@ internal static class GameStatistics
         }
         foreach (var line in data.Values)
         {
+            var playerMinutesKnown = false;
             var knownMinutes = checks.Where(c => c.Code == "MINUTES.COVERAGE" && c.EntityId == line.Team && (line.Period == 0 || c.Period == line.Period)).ToArray();
             if (knownMinutes.Length == 0 || knownMinutes.Any(c => c.Status != CheckStatus.Pass)) { line.Unknown.UnionWith(["MIN", "+/-"]); }
+            if (line.Player is long player)
+            {
+                var own = playerMinutes.Where(p => p.Team == line.Team && p.Player == player && (line.Period == 0 || p.Period == line.Period)).ToArray();
+                playerMinutesKnown = own.Length > 0 && own.All(p => p.Complete) && (own.All(p => !p.Inactive) || own.Sum(p => p.Seconds) > 0);
+                if (playerMinutesKnown) { line.Unknown.Remove("MIN"); }
+                else { line.Unknown.Add("MIN"); }
+            }
             line.Values["MIN"] = stints.Where(s => s.TeamId == line.Team && (line.Player is null || s.PlayerId == line.Player)
                 && (line.Period == 0 || s.Period == line.Period)).Sum(s => (s.StartRemaining - s.EndRemaining) / 60);
             foreach (var (scoring, score) in scoringEvents.Where(x => line.Period == 0 || BasketballValidator.Period(x.Event.Clock) == line.Period))
@@ -137,7 +145,9 @@ internal static class GameStatistics
             foreach (var gap in context.Gaps)
             {
                 var gapPeriod = game.Events.LastOrDefault(e => e.SequenceNumber <= gap.SequenceNumber)?.Clock;
-                if (line.Period == 0 || gapPeriod is null || line.Period == BasketballValidator.Period(gapPeriod)) { line.Unknown.UnionWith(gap.Statistics); }
+                if (line.Period == 0 || gapPeriod is null || line.Period == BasketballValidator.Period(gapPeriod))
+                    line.Unknown.UnionWith(gap.Statistics.Where(s => s == "MIN" && playerMinutesKnown ? false
+                        : s is not ("MIN" or "+/-") || gap.TeamId is null || gap.TeamId == line.Team));
             }
             if (context.HasUnresolvedCredits && context.Gaps.Count == 0) { line.Unknown.UnionWith(["STL", "BLK", "AST"]); }
             if (!context.OrdinaryNbaRules) { line.Unknown.Add("PF"); }

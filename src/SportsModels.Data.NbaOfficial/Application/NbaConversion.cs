@@ -9,7 +9,7 @@ namespace SportsModels.Data.NbaOfficial.Application;
 
 internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValidator validator, IConversionWorkspace workspace) : INbaConversion
 {
-    internal const string Version = "nba-conversion-7";
+    internal const string Version = "nba-conversion-9";
 
     public async Task<ConversionRunResult> RunAsync(ConversionRequest request, CancellationToken cancellationToken = default)
     {
@@ -23,6 +23,7 @@ internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValid
         var findings = new StringBuilder("game,input,code,status,severity,event,period,entity,stat,expected,observed,evidence\n");
         var substitutions = new StringBuilder(SubstitutionCoverage.Header + "\n");
         var substitutionCoverage = new List<(string Competition, int[] Counts)>();
+        var playerQuality = new PlayerQualityReporting();
         var selected = 0;
         var seen = new HashSet<string>();
         var retained = new HashSet<string>();
@@ -70,6 +71,8 @@ internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValid
                 var converted = registry.InTransaction(() => new NbaGameConverter(registry).Convert(bytes, hash, references));
                 dispositions = converted.Rows;
                 var validation = validator.Validate(converted.Game, converted.Context);
+                converted = converted with { Game = RosterLabelRecovery.Apply(converted.Game, validation) };
+                playerQuality.Add(gameId, converted, validation);
                 var checks = converted.Checks.Concat(validation.Checks).ToArray();
                 var substitutionSummary = SubstitutionCoverage.Calculate(gameId, converted, checks);
                 substitutions.AppendLine(substitutionSummary.Csv);
@@ -112,6 +115,9 @@ internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValid
         await workspace.WriteTextAsync(Path.Combine(run, "checks.csv"), aggregates.ToString(), cancellationToken);
         await workspace.WriteTextAsync(Path.Combine(run, "findings.csv"), findings.ToString(), cancellationToken);
         await workspace.WriteTextAsync(Path.Combine(run, "substitutions.csv"), substitutions.ToString(), cancellationToken);
+        await workspace.WriteTextAsync(Path.Combine(run, "player-status.csv"), playerQuality.RosterCsv, cancellationToken);
+        await workspace.WriteTextAsync(Path.Combine(run, "player-minutes.csv"), playerQuality.MinutesCsv, cancellationToken);
+        await workspace.WriteTextAsync(Path.Combine(run, "player-quality.csv"), playerQuality.SummaryCsv, cancellationToken);
         registry.Backup(Path.Combine(run, "registry.sqlite"));
         await workspace.WriteTextAsync(Path.Combine(run, "summary.md"), $"# NBA conversion diagnostics\n\nRun `{runId}`, converter `{Version}`, registry `{registry.RegistryId}` at revision {registry.Revision}.\n\n"
             + $"Attempted {summaries.Count}; converted {summaries.Count - failureCount}; failed {failureCount}. Source rows {summaries.Sum(s => s.Rows)}; unresolved {summaries.Sum(s => s.Unknown)}.\n\n"

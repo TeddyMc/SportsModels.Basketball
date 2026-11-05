@@ -10,24 +10,28 @@ namespace SportsModels.Data.NbaOfficial.Tests.Unit;
 public sealed class AlternateLineupTests
 {
     [TestCase(false, 6)]
-    [TestCase(true, 3)]
-    public void LaterAnchorsRequireCompleteReplayAndEveryPlayerMinuteToAgree(bool wrongMinutes, int expectedAnchors)
+    [TestCase(true, 6)]
+    public void MinuteDisagreementIsSeparateFromPlausibleAnchorAvailability(bool wrongMinutes, int expectedAnchors)
     {
         var references = Bundle(wrongMinutes);
         var result = AlternateLineupReplay.Build(references, true, s => long.Parse(s), s => long.Parse(s));
         Assert.That(result.Lineups, Has.Count.EqualTo(expectedAnchors));
         Assert.That(result.Lineups.All(l => l.AfterOpeningClockSubstitutions), Is.True);
         Assert.That(result.Checks.Count(c => c.Code == "REFERENCE.ALTERNATE_MINUTES" && c.Status == CheckStatus.Fail), Is.EqualTo(wrongMinutes ? 1 : 0));
+        Assert.That(result.Lineups.Where(l => l.TeamId == 10).All(l => l.Corroborated == !wrongMinutes), Is.True);
+        Assert.That(result.Stints.Where(s => s.PlayerId == 10).Sum(s => (decimal)s.StartRemaining - (decimal)s.EndRemaining), Is.EqualTo(2880m));
+        Assert.That(result.Stints.All(s => s.Origin == MinuteEvidenceKind.SupportingFeed && s.SourceSnapshotId == "alternate-fixture"), Is.True);
     }
 
     [Test]
-    public void MissingBoundaryWithholdsAnchorsEvenWhenTotalMinutesAgree()
+    public void MissingBoundaryLeavesCorroborationUnknownButRetainsLaterPlausibleCandidates()
     {
         var references = Bundle(false);
         var original = references.AlternatePlayByPlay[0];
         references.AlternatePlayByPlay[0] = original with { Rows = original.Rows.Skip(1).ToArray() };
         var result = AlternateLineupReplay.Build(references, true, s => long.Parse(s), s => long.Parse(s));
-        Assert.That(result.Lineups, Is.Empty);
+        Assert.That(result.Lineups, Has.Count.EqualTo(6));
+        Assert.That(result.Lineups.All(l => !l.Corroborated), Is.True);
         Assert.That(result.Checks.Where(c => c.Code == "REFERENCE.ALTERNATE_MINUTES").All(c => c.Status == CheckStatus.NotAssessable), Is.True);
     }
 
@@ -102,7 +106,7 @@ public sealed class AlternateLineupTests
         }
         var result=AlternateLineupReplay.Build(references,true,s=>long.Parse(s),s=>long.Parse(s));
         Assert.That(result.Checks.Single(c=>c.Code=="REFERENCE.ALTERNATE_FINAL_FIVE" && c.EntityId==10).Status,Is.EqualTo(expected));
-        Assert.That(result.Lineups.Any(l=>l.TeamId==10),Is.False);
+        Assert.That(result.Lineups.Any(l=>l.TeamId==10),Is.True);
     }
 
     [Test]

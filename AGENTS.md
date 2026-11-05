@@ -18,6 +18,7 @@ This repository holds code and documentation of its current behavior. GitHub iss
 - Repository Markdown owns setup, usage, runnable examples and constraints of the implemented code. Maintain a small set of topic-based guides; link to issues for specification and decision history.
 - Update the relevant guide in the same PR as a behavior/API change. Remove obsolete guidance, and consolidate overlapping documents rather than adding a new file for each task or session.
 - Existing evidence files are historical records, not current specifications. Do not extend that pattern; migrate useful material when working on the relevant area.
+- For work consuming converted NBA data, read `docs/NBA_CONVERSION.md` and #22 first. The local `C:/Data/Basketball/converted/catalog.json` indexes selected immutable runs and their coverage; conversion completion alone does not establish model readiness.
 
 ## Current planning hierarchy
 End goal: NBA in-play modelling and player-prop pricing.

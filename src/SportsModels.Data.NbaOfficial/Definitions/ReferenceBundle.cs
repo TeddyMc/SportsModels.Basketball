@@ -12,6 +12,8 @@ internal sealed class ReferenceBundle
     public List<(string TeamId, string PlayerId, string Name)> RosterPlayers { get; } = [];
     public bool FinalStatusVerified { get; private set; }
     public List<AlternatePlayByPlay> AlternatePlayByPlay { get; } = [];
+    public List<(string SnapshotId, JsonElement Box)> LiveBoxSnapshots { get; } = [];
+    public List<(string SnapshotId, JsonElement Box)> TraditionalBoxSnapshots { get; } = [];
 
     public static ReferenceBundle Parse(IReadOnlyList<(string Path, byte[] Bytes)> inputs, string gameId)
     {
@@ -53,6 +55,7 @@ internal sealed class ReferenceBundle
                     ValidateSides(liveBox);
                     result.FinalStatusVerified |= liveBox.Number("gameStatus") == 3;
                     result.Boxes.Add((0, "liveboxscore", liveBox.Clone()));
+                    result.LiveBoxSnapshots.Add((SourceJson.Hash(paths[0].Bytes), liveBox.Clone()));
                     continue;
                 }
                 if (doc.RootElement.TryGetProperty("resultSets", out var tables))
@@ -67,6 +70,7 @@ internal sealed class ReferenceBundle
                 var period = int.Parse(part[1..], System.Globalization.CultureInfo.InvariantCulture);
                 var mode = parts.Length == 3 ? "period" : parts[1];
                 result.Boxes.Add((period, mode, box.Clone()));
+                if (period == 0) { result.TraditionalBoxSnapshots.Add((SourceJson.Hash(paths[0].Bytes), box.Clone())); }
             }
             catch (Exception exception) when (exception is JsonException or InvalidDataException or FormatException or KeyNotFoundException or InvalidOperationException or IndexOutOfRangeException)
             {

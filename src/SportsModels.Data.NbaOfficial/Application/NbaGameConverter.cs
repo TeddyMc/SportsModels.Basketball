@@ -7,7 +7,12 @@ using SportsModels.Data.NbaOfficial.Definitions;
 namespace SportsModels.Data.NbaOfficial.Application;
 
 internal sealed record ConvertedGame(BasketballGamePlayByPlay Game, List<SourceRowDisposition> Rows,
-    List<BasketballFieldEvidence> Evidence, List<CheckResult> Checks, GameValidationContext Context, string Competition);
+    List<BasketballFieldEvidence> Evidence, List<CheckResult> Checks, GameValidationContext Context, string Competition)
+{
+    public bool HasStatsBox { get; init; }
+    public bool HasCdnBox { get; init; }
+    public bool HasCdnPbp { get; init; }
+}
 
 internal sealed class NbaGameConverter(IIdentityRegistry registry)
 {
@@ -22,12 +27,14 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
     private string homeSource = "";
     private string awaySource = "";
     private AlternatePlayByPlay? alternate;
+    private NbaRosterStatus rosterStatus = null!;
 
     private sealed record Person(long Id, string SourceId, string Team, string Name, HashSet<string> Aliases);
 
     public ConvertedGame Convert(byte[] bytes, string snapshotId, ReferenceBundle references)
     {
         snapshot = snapshotId;
+        rosterStatus = new NbaRosterStatus(references);
         using var doc = JsonDocument.Parse(bytes);
         if (doc.RootElement.TryGetProperty("meta", out var meta) && meta.Number("version") != 1)
         { throw new InvalidDataException("Unsupported playbyplayv3 response version."); }
@@ -145,7 +152,9 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
             FoulCounts = FoulCounts(events),
             TeamFouls = TeamFouls(events),
             MinutesToleranceSeconds = alternate is null ? null : 0.500001,
-            MinutesPrecisionEvidence = "Displayed full-game minutes compared within nearest-second rounding (±0.5s); no widening to absorb disagreement."
+            MinutesPrecisionEvidence = "Displayed full-game minutes compared within nearest-second rounding (±0.5s); no widening to absorb disagreement.",
+            ReconstructionChecks = replay.Checks.Concat(references.Checks).ToArray(),
+            AlternateStints = replay.Stints
         };
         checks.Add(new("TIME.UTC", CheckStatus.NotAssessable,
             "Description wall clocks are minute precision; game date/timezone/midnight evidence is not verified. OccurredAtUtc remains null."));
@@ -159,7 +168,12 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
         {
             if (checks[i].EventId is long eventId && !mappedIds.Contains(eventId)) { checks[i] = checks[i] with { EventId = null }; }
         }
-        return new(game, dispositions, evidence, checks, context, competition);
+        return new(game, dispositions, evidence, checks, context, competition)
+        {
+            HasStatsBox = references.Boxes.Any(b => b.Period == 0 && b.Mode != "liveboxscore"),
+            HasCdnBox = references.Boxes.Any(b => b.Period == 0 && b.Mode == "liveboxscore"),
+            HasCdnPbp = references.AlternatePlayByPlay.Count == 1
+        };
     }
 
     private string Side(string location, ReferenceBundle references, string side)
@@ -255,7 +269,7 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
     private BasketballGameTeam Team(string key) => new(teams[key],
         rows.FirstOrDefault(r => r.Key("teamId") == key && r.Text("teamTricode") != "").Text("teamTricode"),
         [Source(key)], players.Values.Where(p => p.Team == key).OrderBy(p => p.Id)
-            .Select(p => new BasketballGamePlayer(p.Id, p.Name, [Source(p.SourceId)])).ToArray())
+            .Select(p => rosterStatus.Apply(new BasketballGamePlayer(p.Id, p.Name, [Source(p.SourceId)]), key, p.SourceId)).ToArray())
     {
         Coaches = coaches.Values.Where(p => p.Team == key).Select(p => new BasketballGameCoach(p.Id, p.Name, [Source(p.SourceId)])).ToArray()
     };
@@ -717,13 +731,25 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
         "Punched Ball Turnover" => TurnoverType.PunchedBall, _ => TurnoverType.Other
     };
 
-    private static CoverageGap Gap(JsonElement row, int sequence) => row.Text("actionType") switch
+    private CoverageGap Gap(JsonElement row, int sequence)
     {
+        CoverageGap gap = row.Text("actionType") switch
+        {
         "Substitution" => new(sequence, ["MIN", "+/-"], true, false, "Unresolved substitution"),
         "Foul" or "Ejection" => new(sequence, ["PF"], false, true, "Unresolved charged/ejected actor"),
         "" => new(sequence, row.Text("description").Contains("BLOCK", StringComparison.Ordinal) ? ["BLK"]
             : row.Text("description").Contains("STEAL", StringComparison.Ordinal) ? ["STL"] : ["STL", "BLK"], false, true, "Unresolved auxiliary credit"),
         "Timeout" or "Instant Replay" => new(sequence, [], false, true, "Unresolved administrative context"),
         _ => new(sequence, ["PTS", "FGA", "FGM", "3PA", "3PM", "FTA", "FTM", "OREB", "DREB", "REB", "AST", "STL", "BLK", "TOV", "PF", "MIN", "+/-"], true, true, "Unresolved basketball history")
-    };
+        };
+        double? clock = null;
+        try { clock = SourceJson.Remaining(row.Text("clock")); } catch (Exception error) when (error is FormatException or OverflowException) { }
+        return gap with
+        {
+            Period = row.Number("period") is > 0 and <= 20 ? row.Number("period") : null,
+            TeamId = teams.TryGetValue(row.Key("teamId"), out var team) ? team : null,
+            RemainingSeconds = clock,
+            RecordedPlayerOutId = row.Text("actionType") == "Substitution" ? players.GetValueOrDefault(row.Key("personId"))?.Id : null
+        };
+    }
 }

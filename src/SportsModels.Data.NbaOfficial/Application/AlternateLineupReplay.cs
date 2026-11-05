@@ -4,7 +4,10 @@ using SportsModels.Data.NbaOfficial.Definitions;
 
 namespace SportsModels.Data.NbaOfficial.Application;
 
-internal sealed record AlternateReplayResult(IReadOnlyList<LineupEvidence> Lineups, IReadOnlyList<CheckResult> Checks);
+internal sealed record AlternateReplayResult(IReadOnlyList<LineupEvidence> Lineups, IReadOnlyList<CheckResult> Checks)
+{
+    public IReadOnlyList<PlayerStint> Stints { get; init; } = [];
+}
 
 /// <summary>Corroborate an alternate official substitution stream before using later-period anchors.</summary>
 internal static class AlternateLineupReplay
@@ -14,6 +17,7 @@ internal static class AlternateLineupReplay
     {
         var checks = new List<CheckResult>();
         var anchors = new List<LineupEvidence>();
+        var retainedStints = new List<PlayerStint>();
         if (!ordinaryRules || references.AlternatePlayByPlay.Count != 1)
         {
             checks.Add(new("REFERENCE.ALTERNATE_LINEUPS", CheckStatus.NotAssessable,
@@ -31,7 +35,7 @@ internal static class AlternateLineupReplay
             .Where(ReferenceBundle.IsStarter).Select(p => p.Key("personId")).Where(p => p != "").ToHashSet());
         var reliable = active.ToDictionary(kv => kv.Key, kv => kv.Value.Count == 5 && references.StarterAgreement(kv.Key) != false);
         var minutes = active.Keys.ToDictionary(t => t, _ => new Dictionary<string, double>());
-        var candidates = new List<(int Period, string Team, string[] Players, int[] Rows)>();
+        var candidates = new List<(int Period, string Team, string[] Players, int[] Rows, bool Consistent)>();
         var boundaries = new Dictionary<int, (bool Start, bool End)>();
         var priorPeriod = 0;
         var priorClock = 0.0;
@@ -64,7 +68,20 @@ internal static class AlternateLineupReplay
             var elapsed = Math.Max(0, priorClock - clock);
             foreach (var (key, lineup) in active)
             {
-                foreach (var player in lineup) { minutes[key][player] = minutes[key].GetValueOrDefault(player) + elapsed; }
+                foreach (var player in lineup)
+                {
+                    minutes[key][player] = minutes[key].GetValueOrDefault(player) + elapsed;
+                    if (elapsed > 0 && reliable[key] && teamId(key) is long team && playerId(player) is long person)
+                        retainedStints.Add(new(period, team, person, priorClock, clock)
+                        {
+                            Evidence = "Alternate-feed recorded substitution replay; separate from primary events and box-minute agreement.",
+                            IsInferred = true,
+                            Origin = MinuteEvidenceKind.SupportingFeed,
+                            SourceSnapshotId = alternate.SnapshotId,
+                            SourceRows = group.Select(i => new BasketballSourceRowReference(BasketballDataSource.NbaOfficial, alternate.SnapshotId, i, null,
+                                alternate.Rows[i].Text("actionNumber"))).ToArray()
+                        });
+                }
             }
             priorClock = clock;
             foreach (var index in group)
@@ -104,7 +121,7 @@ internal static class AlternateLineupReplay
                         }
                     }
                 }
-                if (clock == maximum) { candidates.Add((period, key, lineup.Order().ToArray(), group)); }
+                if (clock == maximum) { candidates.Add((period, key, lineup.Order().ToArray(), group, reliable[key])); }
             }
         }
 
@@ -137,7 +154,6 @@ internal static class AlternateLineupReplay
                 var replaySeconds = minutes[key].GetValueOrDefault(sourceId);
                 if (reported is null)
                 {
-                    if (replaySeconds > 0) { reliable[key] = false; }
                     continue;
                 }
                 compared++;
@@ -145,26 +161,36 @@ internal static class AlternateLineupReplay
                 // Nearest-second display is corroborated by positive and negative fractional deltas
                 // in actual saved regulation/playoff/2OT responses. No tolerance repairs stint times.
                 var agrees = difference <= 0.500001;
-                if (!agrees) { reliable[key] = false; }
                 checks.Add(new("REFERENCE.ALTERNATE_MINUTES", !replayAssessable ? CheckStatus.NotAssessable : agrees ? CheckStatus.Pass : CheckStatus.Fail,
                     $"Alternate replay vs full-game displayed minutes; nearest-second rounding interval ±0.5s, no widening for defects. Complete reliable replay={replayAssessable}; incomplete/contradictory replay totals are provisional, never passing minute validation. Snapshot {alternate.SnapshotId}.",
                     EntityId: playerId(sourceId), Stat: "MIN_SECONDS", Expected: reported.Value * 60, Observed: replaySeconds,
                     Severity: replayAssessable && !agrees ? FindingSeverity.Warning : null));
             }
-            var qualified = complete && reliable[key] && compared > 0 && resolvedTeam is not null;
+            var qualified = complete && reliable[key] && compared > 0 && resolvedTeam is not null
+                && !checks.Any(c => c.Code == "REFERENCE.ALTERNATE_MINUTES" && c.Status == CheckStatus.Fail
+                    && box.GetProperty("players").EnumerateArray().Any(p => playerId(p.Key("personId")) == c.EntityId));
             checks.Add(new("REFERENCE.ALTERNATE_LINEUPS", qualified ? CheckStatus.Pass : CheckStatus.NotAssessable,
                 $"Team {key}: complete boundaries={complete}, consistent five/actors={reliable[key]}, compared minute rows={compared}. Alternate NBA and box-score agreement is corroboration, not independent ground truth. Snapshot {alternate.SnapshotId}.", EntityId: resolvedTeam));
-            if (!qualified) { continue; }
-            foreach (var candidate in candidates.Where(c => c.Team == key && c.Period > 1))
+            if (resolvedTeam is null) { continue; }
+            var warnedPlayers = checks.Where(c => c.Code == "REFERENCE.ALTERNATE_MINUTES" && c.Status == CheckStatus.Fail && c.EntityId is not null)
+                .Select(c => c.EntityId!.Value).ToArray();
+            foreach (var candidate in candidates.Where(c => c.Team == key && c.Period > 1 && c.Consistent))
             {
                 var ids = candidate.Players.Select(playerId).ToArray();
                 if (ids.Length != 5 || ids.Any(id => id is null)) { continue; }
                 anchors.Add(new(candidate.Period, resolvedTeam!.Value, ids.Select(id => id!.Value).ToArray(),
-                    $"Alternate official snapshot {alternate.SnapshotId}, opening-clock rows {string.Join(',', candidate.Rows)}; explicit substitutions replayed from box starters, all timed five/actor checks consistent and full-game minutes corroborated within display rounding.")
-                { AfterOpeningClockSubstitutions = true });
+                    $"Alternate official snapshot {alternate.SnapshotId}, opening-clock rows {string.Join(',', candidate.Rows)}; candidate reconstructed from box starters and recorded substitutions. Consistent through this opening; whole-game corroboration={qualified}. Comparisons are separate diagnostics, not an availability gate.")
+                {
+                    AfterOpeningClockSubstitutions = true,
+                    Corroborated = qualified,
+                    IsInferred = true,
+                    PlayersWithComparisonWarnings = warnedPlayers,
+                    SourceRows = candidate.Rows.Select(i => new BasketballSourceRowReference(BasketballDataSource.NbaOfficial, alternate.SnapshotId, i, null,
+                        alternate.Rows[i].Text("actionNumber"))).ToArray()
+                });
             }
         }
-        return new(anchors, checks);
+        return new(anchors, checks) { Stints = retainedStints };
     }
 
     private static bool ApplyBatch(HashSet<string> lineup, IEnumerable<JsonElement> substitutions)

@@ -36,7 +36,7 @@ internal static class LineupDiagnostics
                     if (anchoredAfterOpening && clock == (period.Key <= 4 ? 720.0 : 300.0))
                     {
                         var previous = closing.GetValueOrDefault(team.TeamId);
-                        var sourceGap = context.Gaps.Any(g => g.Lineup && g.SequenceNumber > previousSequence
+                        var sourceGap = context.Gaps.Any(g => g.Lineup && (g.TeamId is null || g.TeamId == team.TeamId) && g.SequenceNumber > previousSequence
                             && g.SequenceNumber <= group.Max(e => e.SequenceNumber));
                         var before = previous.Period == period.Key - 1 ? previous.Players?.ToHashSet() : null;
                         var status = before is null || sourceGap ? CheckStatus.NotAssessable
@@ -54,7 +54,7 @@ internal static class LineupDiagnostics
                         CheckActors(group, team.TeamId, null, true, checks, period.Key);
                         continue;
                     }
-                    if (context.Gaps.Any(g => g.Lineup && g.SequenceNumber <= group.Max(e => e.SequenceNumber)
+                    if (context.Gaps.Any(g => g.Lineup && (g.TeamId is null || g.TeamId == team.TeamId) && (g.Period is null || g.Period == period.Key) && g.SequenceNumber <= group.Max(e => e.SequenceNumber)
                         && g.SequenceNumber > previousSequence)) { lineup = null; }
                     previousSequence = group.Max(e => e.SequenceNumber);
                     if (clock < previousClock && lineup is not null)
@@ -129,7 +129,7 @@ internal static class LineupDiagnostics
         return contradiction;
     }
 
-    private static IEnumerable<(long Player, string Statistic, bool Required)> Actors(BasketballPlayByPlayEvent item, long team)
+    internal static IEnumerable<(long Player, string Statistic, bool Required)> Actors(BasketballPlayByPlayEvent item, long team)
     {
         switch (item)
         {
@@ -177,7 +177,7 @@ internal static class LineupDiagnostics
     }
 
     // Establish existence only: never publish an arbitrary same-clock ordering as observed history.
-    private static bool HasCompatibleOrder(HashSet<long> initial, SubstitutionEvent[] substitutions)
+    internal static bool HasCompatibleOrder(HashSet<long> initial, SubstitutionEvent[] substitutions)
     {
         if (substitutions.Select(s => s.PlayerOutId).Distinct().Count() == substitutions.Length
             && substitutions.Select(s => s.PlayerInId).Distinct().Count() == substitutions.Length
