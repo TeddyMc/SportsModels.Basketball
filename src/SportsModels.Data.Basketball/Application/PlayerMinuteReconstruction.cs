@@ -6,6 +6,7 @@ internal sealed record PlayerPeriodMinutes(long Team, long Player, int Period, d
     bool Contradictory, bool Unused, bool Inactive, IReadOnlyList<string> Reasons)
 {
     public IReadOnlyList<MinuteEvidenceKind> EvidenceKinds { get; init; } = [];
+    public bool MetadataWarning { get; init; }
 }
 
 internal static class PlayerMinuteReconstruction
@@ -54,7 +55,7 @@ internal static class PlayerMinuteReconstruction
                 var states = team.Players.ToDictionary(p => p.PlayerId, p => new State(opening is null ? seeds.GetValueOrDefault(p.PlayerId)?.OnCourt : opening.Players.Contains(p.PlayerId))
                 {
                     IsInferred = opening?.IsInferred == true || seeds.GetValueOrDefault(p.PlayerId)?.Origin == MinuteEvidenceKind.InferredBreakChanges,
-                    Origin = opening?.Origin ?? seeds.GetValueOrDefault(p.PlayerId)?.Origin ?? MinuteEvidenceKind.Unknown,
+                    Origin = seeds.GetValueOrDefault(p.PlayerId)?.Origin ?? opening?.Origin ?? MinuteEvidenceKind.Unknown,
                     Evidence = $"Opening membership p{period}/team{team.TeamId}/player{p.PlayerId}; see OpeningMemberships."
                 });
                 var duration = period <= 4 ? 720.0 : 300.0;
@@ -184,7 +185,10 @@ internal static class PlayerMinuteReconstruction
                         state.Reasons.Add("Reported played=false conflicts with participation evidence; a confirmed zero is not manufactured.");
                     if (unused) { state.Kinds.Add(MinuteEvidenceKind.SupportingFeed); }
                     results.Add(new(team.TeamId, player.PlayerId, period, seconds, complete, state.Contradictory, unused, inactive, state.Reasons.ToArray())
-                    { EvidenceKinds = state.Kinds.Order().ToArray() });
+                    {
+                        EvidenceKinds = state.Kinds.Order().ToArray(),
+                        MetadataWarning = player.Played == false && (participated || seconds > 0 || reportedPositive) || inactive && seconds > 0
+                    });
                 }
             }
         }
@@ -207,14 +211,15 @@ internal static class PlayerMinuteReconstruction
                 var corroborated = checks.Any(c => c.Code == "BOX.RECONCILIATION" && c.Status == CheckStatus.Pass && c.EntityId == player.Key.Player && c.Stat == "MIN"
                     && (scope == MinuteScope.Period ? c.Period == period : c.Period == 0 && (scope == MinuteScope.FullGame || player.All(p => p.Period <= 4))));
                 var inactive = selected.Any(p => p.Inactive);
+                var seconds = selected.Sum(p => p.Seconds);
+                var inactiveWithoutPositiveReconstruction = inactive && seconds == 0;
                 var bad = selected.Any(p => p.Contradictory);
                 var complete = selected.Length > 0 && selected.All(p => p.Complete);
                 var unused = selected.Length > 0 && selected.All(p => p.Unused);
-                var status = inactive ? MinuteAvailability.Inactive : bad ? MinuteAvailability.Contradictory
+                var status = inactiveWithoutPositiveReconstruction ? MinuteAvailability.Inactive : bad ? MinuteAvailability.Contradictory
                     : !complete ? MinuteAvailability.Unestablished : unused ? MinuteAvailability.ConfirmedUnused
-                    : warnings.Length > 0 ? MinuteAvailability.WithComparisonWarnings : corroborated ? MinuteAvailability.Corroborated : MinuteAvailability.PlausibleUncorroborated;
-                var seconds = selected.Sum(p => p.Seconds);
-                result.Add(new(player.Key.Team, player.Key.Player, scope, period, complete && !inactive && !bad ? seconds : null, seconds, status, reasons.ToArray())
+                    : warnings.Length > 0 || selected.Any(p => p.MetadataWarning) ? MinuteAvailability.WithComparisonWarnings : corroborated ? MinuteAvailability.Corroborated : MinuteAvailability.PlausibleUncorroborated;
+                result.Add(new(player.Key.Team, player.Key.Player, scope, period, complete && !inactiveWithoutPositiveReconstruction && !bad ? seconds : null, seconds, status, reasons.ToArray())
                 { EvidenceKinds = selected.SelectMany(p => p.EvidenceKinds).Distinct().Order().ToArray() });
             }
             foreach (var period in player) { Add([period], MinuteScope.Period, period.Period); }

@@ -9,7 +9,7 @@ namespace SportsModels.Data.NbaOfficial.Application;
 
 internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValidator validator, IConversionWorkspace workspace) : INbaConversion
 {
-    internal const string Version = "nba-conversion-8";
+    internal const string Version = "nba-conversion-9";
 
     public async Task<ConversionRunResult> RunAsync(ConversionRequest request, CancellationToken cancellationToken = default)
     {
@@ -71,6 +71,7 @@ internal sealed class NbaConversion(IIdentityRegistry registry, IBasketballValid
                 var converted = registry.InTransaction(() => new NbaGameConverter(registry).Convert(bytes, hash, references));
                 dispositions = converted.Rows;
                 var validation = validator.Validate(converted.Game, converted.Context);
+                converted = converted with { Game = RosterLabelRecovery.Apply(converted.Game, validation) };
                 playerQuality.Add(gameId, converted, validation);
                 var checks = converted.Checks.Concat(validation.Checks).ToArray();
                 var substitutionSummary = SubstitutionCoverage.Calculate(gameId, converted, checks);

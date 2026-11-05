@@ -3,12 +3,80 @@ using NUnit.Framework;
 using SportsModels.Data.Basketball.Application;
 using SportsModels.Data.Basketball.Contracts;
 using SportsModels.Data.NbaOfficial.Definitions;
+using SportsModels.Data.NbaOfficial.Application;
 
 namespace SportsModels.Data.NbaOfficial.Tests.Unit;
 
 [TestFixture]
 public sealed class PlayerMinuteTests
 {
+    [Test]
+    public void TraditionalStarterFieldsPopulateRolesWithoutACdnBox()
+    {
+        var references = new ReferenceBundle();
+        references.TraditionalBoxSnapshots.Add(("traditional", JsonSerializer.SerializeToElement(new
+        {
+            homeTeam = new { teamId = "10", players = Enumerable.Range(101, 6).Select(p => new
+                { personId = p.ToString(), position = p <= 105 ? "G" : "", statistics = new { minutes = p == 101 ? "12:30" : "0:00" } }).ToArray() },
+            awayTeam = new { teamId = "20", players = Array.Empty<object>() }
+        })));
+        var parser = new NbaRosterStatus(references);
+        Assert.That(parser.Apply(Player(101), "10", "101").Started, Is.True);
+        Assert.That(parser.Apply(Player(101), "10", "101").Eligibility, Is.EqualTo(PlayerEligibility.Active));
+        Assert.That(parser.Apply(Player(101), "10", "101").Played, Is.True);
+        var bench = parser.Apply(Player(106), "10", "106");
+        Assert.That(bench.Started, Is.False);
+        Assert.That(bench.Eligibility, Is.EqualTo(PlayerEligibility.Unknown));
+        Assert.That(bench.StatusEvidence.Single().SnapshotId, Is.EqualTo("traditional"));
+    }
+
+    [Test]
+    public void RecoveredQ1RolesAndParticipationKeepTheirDiagnosticProvenance()
+    {
+        var events = new BasketballPlayByPlayEvent[] { Boundary(1, 720, true), Sub(2, 480, 106, 101), Boundary(3, 0, false) };
+        var game = new BasketballGamePlayByPlay(1, [], Team(10, 101), Team(20, 201), events);
+        var report = new BasketballValidator().Validate(game, Context() with { OpeningLineups = [] });
+        var recovered = RosterLabelRecovery.Apply(game, report);
+        var starter = recovered.HomeTeam.Players.Single(p => p.PlayerId == 106);
+        var bench = recovered.HomeTeam.Players.Single(p => p.PlayerId == 101);
+        Assert.That(starter.Started, Is.True);
+        Assert.That(bench.Started, Is.False);
+        Assert.That(starter.Eligibility, Is.EqualTo(PlayerEligibility.Active));
+        Assert.That(starter.Played, Is.True);
+        Assert.That(starter.StatusEvidence.Single(e => e.FieldName == "Started").Origin, Is.EqualTo(MinuteEvidenceKind.InferredBreakChanges));
+        Assert.That(starter.StatusEvidence.Single(e => e.FieldName == "Eligibility").EventIds, Does.Contain(events[1].EventId));
+        Assert.That(recovered.HomeTeam.Players.Single(p => p.PlayerId == 107).Started, Is.Null);
+        Assert.That(recovered.HomeTeam.Players.Single(p => p.PlayerId == 107).Eligibility, Is.EqualTo(PlayerEligibility.Unknown));
+    }
+
+    [Test]
+    public void RecoveryDoesNotOverwriteExplicitInactiveOrConflictingRoleEvidence()
+    {
+        var game = new BasketballGamePlayByPlay(1, [], Team(10, 101) with
+        {
+            Players = Team(10, 101).Players.Select(p => p.PlayerId == 106 ? p with
+            { Eligibility = PlayerEligibility.Inactive, Played = false,
+                StatusEvidence = [new("Started", BasketballDataSource.NbaOfficial, "conflict", "$.starter", "0/1")] } : p).ToArray()
+        }, Team(20, 201), [Boundary(1, 720, true), Sub(2, 480, 106, 101), Boundary(3, 0, false)]);
+        var report = new BasketballValidator().Validate(game, Context() with { OpeningLineups = [] });
+        var player = RosterLabelRecovery.Apply(game, report).HomeTeam.Players.Single(p => p.PlayerId == 106);
+        Assert.That(player.Started, Is.Null);
+        Assert.That(player.Eligibility, Is.EqualTo(PlayerEligibility.Inactive));
+        Assert.That(player.Played, Is.False);
+    }
+
+    [Test]
+    public void LaterPeriodParticipationDoesNotInventAStartingRole()
+    {
+        var game = new BasketballGamePlayByPlay(1, [], Team(10, 101), Team(20, 201),
+            [Boundary(1, 720, true, 2), Sub(2, 480, 106, 101) with { Clock = Clock(2, 480) }, Boundary(3, 0, false, 2)]);
+        var report = new BasketballValidator().Validate(game, Context() with { OpeningLineups = [] });
+        var recovered = RosterLabelRecovery.Apply(game, report).HomeTeam.Players.Single(p => p.PlayerId == 106);
+        Assert.That(recovered.Started, Is.Null);
+        Assert.That(recovered.Eligibility, Is.EqualTo(PlayerEligibility.Active));
+        Assert.That(recovered.Played, Is.True);
+    }
+
     [Test]
     public void ActiveUnusedAndInactiveAreDifferentCanonicalFactsWithSnapshotEvidence()
     {
@@ -40,6 +108,23 @@ public sealed class PlayerMinuteTests
     }
 
     [Test]
+    public void DisagreeingCompleteStarterSourcesLeaveOnlyAffectedRoleFlagsUnknown()
+    {
+        var references = new ReferenceBundle();
+        object Team(bool live) => new { teamId = "10", players = Enumerable.Range(101, 6).Select(p => new
+        { personId = p.ToString(), starter = live ? (p >= 102 ? "1" : "0") : (p <= 105 ? "1" : "0"), status = "ACTIVE", played = "1" }).ToArray() };
+        var empty = new { teamId = "20", players = Array.Empty<object>() };
+        references.LiveBoxSnapshots.Add(("live", JsonSerializer.SerializeToElement(new { homeTeam = Team(true), awayTeam = empty })));
+        references.TraditionalBoxSnapshots.Add(("traditional", JsonSerializer.SerializeToElement(new { homeTeam = Team(false), awayTeam = empty })));
+        var parser = new NbaRosterStatus(references);
+        Assert.That(parser.Apply(Player(101), "10", "101").Started, Is.Null);
+        Assert.That(parser.Apply(Player(106), "10", "106").Started, Is.Null);
+        Assert.That(parser.Apply(Player(102), "10", "102").Started, Is.True);
+        Assert.That(parser.Apply(Player(101), "10", "101").StatusEvidence.Where(e => e.FieldName == "Started").Select(e => e.SnapshotId),
+            Is.EquivalentTo(new[] { "live", "traditional" }));
+    }
+
+    [Test]
     public void ConfirmedActiveUnusedIsARealZeroWhileInactiveIsNotBenchZero()
     {
         var home = Team(10, 101) with { Players = Team(10, 101).Players.Select(p => p.PlayerId == 106
@@ -50,6 +135,19 @@ public sealed class PlayerMinuteTests
         Assert.That(report.PlayerMinutes.Single(p => p.PlayerId == 106 && p.Scope == MinuteScope.Regulation).Availability, Is.EqualTo(MinuteAvailability.ConfirmedUnused));
         Assert.That(report.PlayerMinutes.Single(p => p.PlayerId == 107 && p.Scope == MinuteScope.Regulation).Availability, Is.EqualTo(MinuteAvailability.Inactive));
         Assert.That(report.PlayerMinutes.Single(p => p.PlayerId == 107 && p.Scope == MinuteScope.Regulation).Seconds, Is.Null);
+    }
+
+    [TestCase(PlayerEligibility.Active)]
+    [TestCase(PlayerEligibility.Inactive)]
+    public void ParticipationStatusConflictDoesNotErasePlausiblePositiveIntervals(PlayerEligibility eligibility)
+    {
+        var home = Team(10, 101) with { Players = Team(10, 101).Players.Select(p => p.PlayerId == 106
+            ? p with { Eligibility = eligibility, Played = false, Started = false } : p).ToArray() };
+        var events = new BasketballPlayByPlayEvent[] { Boundary(1, 720, true), Sub(2, 600, 101, 106), Sub(3, 300, 106, 101), Boundary(4, 0, false) };
+        var report = new BasketballValidator().Validate(new(1, [], home, Team(20, 201), events), Context());
+        var observation = report.PlayerMinutes.Single(p => p.PlayerId == 106 && p.Scope == MinuteScope.Period && p.Period == 1);
+        Assert.That(observation.Seconds, Is.EqualTo(300m));
+        Assert.That(observation.Availability, Is.EqualTo(MinuteAvailability.WithComparisonWarnings));
     }
 
     [Test]
@@ -87,6 +185,24 @@ public sealed class PlayerMinuteTests
         Assert.That(report.PlayerMinutes.Single(p => p.PlayerId == 107 && p.Scope == MinuteScope.Period && p.Period == 1).Seconds, Is.EqualTo(0m));
         Assert.That(report.PlayerMinutes.Single(p => p.PlayerId == 107 && p.Scope == MinuteScope.Period && p.Period == 1).EvidenceKinds,
             Does.Contain(MinuteEvidenceKind.InferredBreakChanges));
+    }
+
+    [Test]
+    public void ConflictingStarterMetadataDoesNotOverrideConsistentWithinQuarterEvidence()
+    {
+        var events = new List<BasketballPlayByPlayEvent> { Boundary(1, 720, true) };
+        for (var i = 0; i < 5; i++) { events.Add(Sub(i * 2 + 2, 600 - i * 50, 101 + i, 106)); events.Add(Sub(i * 2 + 3, 590 - i * 50, 106, 101 + i)); }
+        events.Add(Boundary(20, 0, false));
+        var home = Team(10, 101) with { Players = Team(10, 101).Players.Select(p => p with { Started = p.PlayerId is >= 102 and <= 106 }).ToArray() };
+        var context = Context() with
+        {
+            OpeningLineups = [],
+            ReconstructionChecks = [new("REFERENCE.STARTER_AGREEMENT", CheckStatus.Fail, "Conflicting retained starter sets", EntityId: 10)]
+        };
+        var report = new BasketballValidator().Validate(new(1, [], home, Team(20, 201), events), context);
+        Assert.That(report.OpeningMemberships.Single(m => m.TeamId == 10 && m.PlayerId == 101).OnCourt, Is.True);
+        Assert.That(report.OpeningMemberships.Single(m => m.TeamId == 10 && m.PlayerId == 101).Origin, Is.EqualTo(MinuteEvidenceKind.InferredBreakChanges));
+        Assert.That(report.PlayerMinutes.Single(m => m.PlayerId == 101 && m.Scope == MinuteScope.Period && m.Period == 1).Seconds, Is.EqualTo(710m));
     }
 
     [Test]

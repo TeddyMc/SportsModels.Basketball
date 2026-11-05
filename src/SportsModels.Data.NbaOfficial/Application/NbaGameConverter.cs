@@ -153,7 +153,7 @@ internal sealed class NbaGameConverter(IIdentityRegistry registry)
             TeamFouls = TeamFouls(events),
             MinutesToleranceSeconds = alternate is null ? null : 0.500001,
             MinutesPrecisionEvidence = "Displayed full-game minutes compared within nearest-second rounding (±0.5s); no widening to absorb disagreement.",
-            ReconstructionChecks = replay.Checks,
+            ReconstructionChecks = replay.Checks.Concat(references.Checks).ToArray(),
             AlternateStints = replay.Stints
         };
         checks.Add(new("TIME.UTC", CheckStatus.NotAssessable,

@@ -23,6 +23,8 @@ internal static class OpeningMembershipInference
                 }
                 if (supplied.Length > 0) { continue; }
                 var before = game.Events.Where(e => e.SequenceNumber < period.Min(p => p.SequenceNumber)).Select(e => e.SequenceNumber).DefaultIfEmpty(0).Max();
+                var starterConflict = context.ReconstructionChecks.Any(c => c.Code == "REFERENCE.STARTER_AGREEMENT"
+                    && c.Status == CheckStatus.Fail && c.EntityId == team.TeamId);
                 var firstGap = context.Gaps.Where(g => g.Lineup && (g.Period == period.Key || g.Period is null
                     && g.SequenceNumber > before && g.SequenceNumber <= period.Max(e => e.SequenceNumber)))
                     .Where(g => g.TeamId is null || g.TeamId == team.TeamId).Select(g => g.SequenceNumber).DefaultIfEmpty(int.MaxValue).Min();
@@ -42,7 +44,7 @@ internal static class OpeningMembershipInference
                     var origin = MinuteEvidenceKind.Unknown;
                     var explanation = "No opening evidence or unique inference for this player.";
                     long? firstEvent = null;
-                    if (period.Key == 1 && player.Started is bool starter)
+                    if (period.Key == 1 && !starterConflict && player.Started is bool starter)
                     { value = starter; origin = MinuteEvidenceKind.SupportingFeed; explanation = "Explicit game-starter flag establishes Q1 membership only."; }
                     else
                     {

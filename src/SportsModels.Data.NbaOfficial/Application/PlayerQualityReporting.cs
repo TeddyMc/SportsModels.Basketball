@@ -6,7 +6,7 @@ namespace SportsModels.Data.NbaOfficial.Application;
 
 internal sealed class PlayerQualityReporting
 {
-    private readonly StringBuilder roster = new("game,season,competition,team,player,eligibility,started,played,not_playing_reason,not_playing_description,has_stats_box,has_cdn_box,has_cdn_pbp\n");
+    private readonly StringBuilder roster = new("game,season,competition,team,player,eligibility,started,played,not_playing_reason,not_playing_description,has_stats_box,has_cdn_box,has_cdn_pbp,eligibility_evidence,started_evidence,played_evidence\n");
     private readonly StringBuilder minutes = new("game,season,competition,team,player,scope,period,seconds,established_seconds,availability,evidence_kinds,reasons\n");
     private readonly Dictionary<(string Season, string Competition, PlayerEligibility Eligibility, bool Unused), int> statuses = [];
     private readonly Dictionary<(string Season, string Competition, MinuteScope Scope, MinuteAvailability Availability), int> availability = [];
@@ -28,8 +28,11 @@ internal sealed class PlayerQualityReporting
         foreach (var team in new[] { converted.Game.HomeTeam, converted.Game.AwayTeam })
             foreach (var player in team.Players)
             {
+                string Basis(string field) => string.Join('|', player.StatusEvidence.Where(e => e.FieldName == field)
+                    .Select(e => e.Kind + "/" + e.Origin).Distinct());
                 roster.AppendLine(string.Join(',', new object?[] { id, season, competition, team.TeamId, player.PlayerId,
-                    player.Eligibility, player.Started, player.Played, player.NotPlayingReason, player.NotPlayingDescription, statsBox, cdnBox, cdnPbp }.Select(Csv)));
+                    player.Eligibility, player.Started, player.Played, player.NotPlayingReason, player.NotPlayingDescription, statsBox, cdnBox, cdnPbp,
+                    Basis(nameof(player.Eligibility)), Basis(nameof(player.Started)), Basis(nameof(player.Played)) }.Select(Csv)));
                 var key = (season, competition, player.Eligibility, player.Eligibility == PlayerEligibility.Active && player.Played == false);
                 statuses[key] = statuses.GetValueOrDefault(key) + 1;
             }

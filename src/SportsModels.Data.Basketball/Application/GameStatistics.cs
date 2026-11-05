@@ -118,7 +118,7 @@ internal static class GameStatistics
             if (line.Player is long player)
             {
                 var own = playerMinutes.Where(p => p.Team == line.Team && p.Player == player && (line.Period == 0 || p.Period == line.Period)).ToArray();
-                playerMinutesKnown = own.Length > 0 && own.All(p => p.Complete && !p.Inactive);
+                playerMinutesKnown = own.Length > 0 && own.All(p => p.Complete) && (own.All(p => !p.Inactive) || own.Sum(p => p.Seconds) > 0);
                 if (playerMinutesKnown) { line.Unknown.Remove("MIN"); }
                 else { line.Unknown.Add("MIN"); }
             }
