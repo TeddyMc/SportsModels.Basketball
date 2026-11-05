@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Regulation minutes · trained model comparison</title>
+<style>
+body{font:15px system-ui;margin:24px auto;max-width:1250px;padding:0 20px;background:#f5f7fa;color:#172638}h1{margin-bottom:6px}p{line-height:1.5}.cards{display:flex;gap:12px;flex-wrap:wrap}.card{background:white;border:1px solid #d7dfe7;border-radius:8px;padding:14px;flex:1;min-width:160px}.value{font-size:25px;font-weight:650}label{display:block;margin-top:24px}input{font:inherit;padding:10px;width:min(550px,90%)}svg{width:100%;background:white;border:1px solid #d7dfe7;border-radius:8px}table{border-collapse:collapse;width:100%;background:white;font-size:13px}td,th{text-align:left;padding:8px;border-bottom:1px solid #dae1e8;white-space:nowrap}th{position:sticky;top:0;background:#e9eef4}.scroll{overflow:auto;max-height:520px}.muted{color:#516377}details{margin:20px 0}pre{white-space:pre-wrap}#empty{color:#9b3f00}button{padding:8px}.population-plots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}@media(max-width:750px){.population-plots{grid-template-columns:1fr}}
+</style>
+<h1>Regulation minutes · trained model comparison</h1>
+<p class="muted">Train: 2021–22 through 2024–25 · Validation: 2025–26 · Separate fitted weights and histories for starters and bench · Lower MAE is better</p>
+<p>All parameters minimise training MAE in minutes and stay frozen during validation. Earlier completed validation games can supply history for later validation predictions. No likelihood is fitted. Missing observations remain unavailable; comparison warnings are retained.</p>
+<div class="scroll"><table><thead><tr><th>Model</th><th>Training scored games</th><th>Training MAE (min)</th><th>Validation scored games</th><th>Validation MAE (min)</th></tr></thead><tbody id="comparison"></tbody></table></div>
+<p id="coverage-note" class="muted"></p>
+<details><summary>Per-season data coverage</summary><p>Older runs have many usable minute reconstructions without starter/bench labels. These cannot yet train a role-conditioned model. Unknown status is not silently assigned to bench.</p><table><thead><tr><th>Season</th><th>Games</th><th>Known active</th><th>Unknown eligibility/role</th><th>Inactive</th><th>Scored player-games</th></tr></thead><tbody id="season-coverage"></tbody></table></details>
+<div id="model-tabs" role="tablist" aria-label="Model type"></div>
+<style>#model-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0}#model-tabs button{font:inherit;border:1px solid #8295a7;border-radius:6px;background:white;cursor:pointer}#model-tabs button[aria-selected=true]{background:#173c59;color:white}select{font:inherit;padding:8px}#model-title{margin-bottom:8px}</style>
+<h2 id="model-title"></h2>
+<label for="dataset">Dataset displayed in charts and cards</label>
+<select id="dataset"><option value="Both">Training + validation</option><option value="Training">Training only</option><option value="Validation">Validation only</option></select>
+<details><summary>Fitted parameters for this model</summary><p id="parameter-description"></p><pre id="parameters"></pre></details>
+<div id="overall" class="cards"></div><p id="scope"></p>
+<details><summary>Data quality, provenance and limitations</summary><pre id="metadata"></pre></details>
+<h2>Predicted versus actual · all player-games</h2>
+<p>Each dot is a player-game with both values available. The solid line shows mean actual minutes within one-minute prediction bands; the dashed diagonal is perfect prediction (actual = predicted). These population plots stay fixed when you select a player.</p>
+<div class="population-plots">
+<section><h3>Starters</h3><p id="starter-count" class="muted"></p><svg id="starter-comparison" viewBox="0 0 550 500" role="img" aria-label="All starter player-games: predicted versus actual minutes with perfect prediction reference"></svg></section>
+<section><h3>Bench</h3><p id="bench-count" class="muted"></p><svg id="bench-comparison" viewBox="0 0 550 500" role="img" aria-label="All bench player-games: predicted versus actual minutes with perfect prediction reference"></svg></section>
+</div>
+<label for="player">Search/select any confirmed active player (name · internal ID · registry)</label>
+<input id="player" list="players" autocomplete="off"><datalist id="players"></datalist>
+<p id="selected"></p><div id="individual" class="cards"></div><p id="empty"></p>
+<h2>Actual and pre-game prediction</h2><p><span style="color:#176c98">● Actual</span> · <span style="color:#c25327">● Predicted</span> · circle = starter, square = bench. Games are equally spaced in chronological order; dashed vertical lines mark each season's first represented game. Hover marks for dates and game details. Missing values break lines.</p>
+<svg id="minutes" viewBox="0 0 1150 290" role="img" aria-label="Chronological actual versus predicted regulation minutes"></svg>
+<h2>Residuals</h2><p class="muted">Positive means actual exceeded prediction. MAE evaluates the arithmetic mean; it does not fit a median.</p>
+<svg id="residuals" viewBox="0 0 1150 250" role="img" aria-label="Chronological residual minutes"></svg>
+<h2>Inspectable game rows</h2><p class="muted">Cutoff is start of game date. Expand a history count to inspect the earlier game IDs. Seconds retain source precision in predictions.json.</p>
+<div class="scroll"><table><thead><tr><th>Date / cutoff</th><th>Game</th><th>Role</th><th>Actual min</th><th>Predicted min</th><th>Residual min</th><th>History / latest</th><th>Prediction status</th><th>Observation quality</th></tr></thead><tbody id="games"></tbody></table></div>
+<script>
+const data=__DATA__;
+let rows=[], summary={}, currentModel=0;
+const $=id=>document.getElementById(id), fmt=x=>x==null?'—':x.toFixed(2);
+function metrics(rs){let e=rs.filter(r=>r.ResidualSeconds!=null);return {Population:rs.length,Observed:rs.filter(r=>r.Observation.RegulationSeconds!=null).length,Predicted:rs.filter(r=>r.PredictedSeconds!=null).length,Evaluated:e.length,MaeMinutes:e.length?e.reduce((s,r)=>s+Math.abs(r.ResidualSeconds)/60,0)/e.length:null,MeanSignedErrorMinutes:e.length?e.reduce((s,r)=>s+r.ResidualSeconds/60,0)/e.length:null}}
+function cards(id,m){$(id).replaceChildren();for(let [k,v] of [['Player-games',m.Population.toLocaleString()],['Observed',m.Observed.toLocaleString()],['Predicted / evaluated',m.Predicted.toLocaleString()+' / '+m.Evaluated.toLocaleString()],['MAE minutes',fmt(m.MaeMinutes)],['Signed error minutes',fmt(m.MeanSignedErrorMinutes)]]){let c=document.createElement('div');c.className='card';let n=document.createElement('div');n.className='value';n.textContent=v;c.append(n,document.createTextNode(k));$(id).append(c)}}
+const groups=new Map(), choices=new Map();
+const ns='http://www.w3.org/2000/svg';function el(tag,attrs,text){let n=document.createElementNS(ns,tag);for(let [k,v]of Object.entries(attrs))n.setAttribute(k,v);if(text!=null)n.textContent=text;return n}
+function season(row) {
+    const match = /^\d{3}(\d{2})\d{5}$/.exec(row.Observation.GameId);
+    if (!match) return 'Season unavailable';
+    const year = 2000 + Number(match[1]);
+    return `${year}–${String((year + 1) % 100).padStart(2, '0')}`;
+}
+
+function plot(id, rs, residual) {
+    const svg = $(id);
+    svg.replaceChildren();
+    const h = residual ? 250 : 290, left = 54, right = 1120, top = 34, bottom = h - 45;
+    const min = residual ? -48 : 0, max = 48;
+    const x = index => rs.length === 1 ? (left + right) / 2 : left + index / (rs.length - 1) * (right - left);
+    const y = value => bottom - (value - min) / (max - min) * (bottom - top);
+
+    for (let tick = min; tick <= max; tick += residual ? 24 : 12) {
+        svg.append(el('line', {x1:left, x2:right, y1:y(tick), y2:y(tick), stroke:tick === 0 ? '#8093a6' : '#e4eaf0'}),
+            el('text', {x:45, y:y(tick)+5, 'text-anchor':'end', fill:'#516377', 'font-size':12}, tick));
+    }
+
+    const tickIndices = [...new Set(Array.from({length:Math.min(6, rs.length)}, (_, i) =>
+        Math.round(i * (rs.length - 1) / Math.max(1, Math.min(6, rs.length) - 1))))];
+    for (const index of tickIndices) {
+        svg.append(el('text', {x:x(index), y:h-12, 'text-anchor':index === 0 ? 'start' : index === rs.length-1 ? 'end' : 'middle',
+            'font-size':12, fill:'#516377'}, rs[index].Observation.Date));
+    }
+
+    rs.forEach((row, index) => {
+        if (index > 0 && season(row) === season(rs[index-1])) return;
+        const boundary = el('line', {x1:x(index), x2:x(index), y1:top-6, y2:bottom+8,
+            stroke:'#8093a6', 'stroke-dasharray':'5 5', 'data-season':season(row)});
+        boundary.append(el('title', {}, `${season(row)} · first represented game ${row.Observation.Date}`));
+        svg.append(boundary, el('text', {x:x(index)+4, y:18, 'font-size':12, fill:'#516377',
+            'text-anchor':index === rs.length-1 ? 'end' : 'start'}, season(row)));
+    });
+
+    const series = residual ? [['ResidualSeconds', '#7358a5']] : [['actual', '#176c98'], ['PredictedSeconds', '#c25327']];
+    for (const [field, color] of series) {
+        let previous = null;
+        rs.forEach((row, index) => {
+            const raw = field === 'actual' ? row.Observation.RegulationSeconds : row[field];
+            if (raw == null) { previous = null; return; }
+            const point = {x:x(index), y:y(raw/60)};
+            if (previous) svg.append(el('line', {x1:previous.x, y1:previous.y, x2:point.x, y2:point.y, stroke:color, 'stroke-width':1, opacity:.55}));
+            const mark = row.Observation.Started === false
+                ? el('rect', {x:point.x-3, y:point.y-3, width:6, height:6, fill:color, 'data-series':field})
+                : el('circle', {cx:point.x, cy:point.y, r:3, fill:color, 'data-series':field});
+            mark.append(el('title', {}, `${row.Observation.Date} · ${row.Observation.GameId} · ${field}: ${fmt(raw/60)} min · role ${row.Observation.Started} · history ${row.HistoryCount}`));
+            svg.append(mark);
+            previous = point;
+        });
+    }
+}
+
+function populationPlot(id, countId, started, color) {
+    const svg = $(id), roleRows = rows.filter(row => row.Observation.Started === started);
+    svg.replaceChildren();
+    const evaluated = roleRows.filter(row => row.PredictedSeconds != null && row.Observation.RegulationSeconds != null);
+    $(countId).textContent = `${evaluated.length.toLocaleString()} player-games plotted; ${(roleRows.length-evaluated.length).toLocaleString()} missing actual or prediction.`;
+    const left = 58, right = 524, top = 18, bottom = 442;
+    const x = value => left + value / 48 * (right-left), y = value => bottom - value / 48 * (bottom-top);
+
+    for (let tick = 0; tick <= 48; tick += 12) {
+        svg.append(el('line', {x1:left, x2:right, y1:y(tick), y2:y(tick), stroke:'#e4eaf0'}),
+            el('line', {x1:x(tick), x2:x(tick), y1:top, y2:bottom, stroke:'#e4eaf0'}),
+            el('text', {x:48, y:y(tick)+4, 'text-anchor':'end', 'font-size':12, fill:'#516377'}, tick),
+            el('text', {x:x(tick), y:bottom+22, 'text-anchor':'middle', 'font-size':12, fill:'#516377'}, tick));
+    }
+    svg.append(el('text', {x:(left+right)/2, y:490, 'text-anchor':'middle', 'font-size':13, fill:'#172638'}, 'Predicted minutes'),
+        el('text', {x:16, y:(top+bottom)/2, transform:`rotate(-90 16 ${(top+bottom)/2})`, 'text-anchor':'middle', 'font-size':13, fill:'#172638'}, 'Actual minutes'));
+
+    const bins = new Map();
+    for (const row of evaluated) {
+        const predicted = row.PredictedSeconds/60, actual = row.Observation.RegulationSeconds/60;
+        const mark = el('circle', {cx:x(predicted), cy:y(actual), r:1.6, fill:color, opacity:.16, 'data-player-game':row.Observation.GameId});
+        mark.append(el('title', {}, `${row.Observation.Name} · ${row.Observation.Date} · ${row.Observation.GameId} · predicted ${fmt(predicted)}, actual ${fmt(actual)} min`));
+        svg.append(mark);
+        const key = Math.floor(predicted);
+        if (!bins.has(key)) bins.set(key, {predicted:0, actual:0, count:0});
+        const bin = bins.get(key);
+        bin.predicted += predicted;
+        bin.actual += actual;
+        bin.count++;
+    }
+
+    const points = [...bins].sort((a,b) => a[0]-b[0]).map(([,bin]) => `${x(bin.predicted/bin.count)},${y(bin.actual/bin.count)}`).join(' ');
+    svg.append(el('polyline', {points, fill:'none', stroke:color, 'stroke-width':2.5, 'data-mean-line':'one-minute prediction bands'}));
+    svg.append(el('line', {x1:x(0), y1:y(0), x2:x(48), y2:y(48), stroke:'#24384b', 'stroke-width':2,
+        'stroke-dasharray':'7 5', 'data-perfect-prediction':'true'}));
+    if (evaluated.length === 0) svg.append(el('text', {x:(left+right)/2, y:(top+bottom)/2, 'text-anchor':'middle', fill:'#516377'}, 'No evaluated player-games'));
+}
+
+function render(){let key=choices.get($('player').value);if(!key){$('empty').textContent='Choose a complete player entry from the suggestions.';return}let rs=groups.get(key);$('empty').textContent='';$('selected').textContent=rs.at(-1).Observation.Name;cards('individual',metrics(rs));plot('minutes',rs,false);plot('residuals',rs,true);$('games').replaceChildren();for(let r of rs){let o=r.Observation,tr=document.createElement('tr');let vals=[o.Date,o.GameId,o.Started==null?'Unknown':o.Started?'Starter':'Bench',fmt(o.RegulationSeconds==null?null:o.RegulationSeconds/60),fmt(r.PredictedSeconds==null?null:r.PredictedSeconds/60),fmt(r.ResidualSeconds==null?null:r.ResidualSeconds/60),null,r.Status,o.Quality];for(let v of vals){let td=document.createElement('td');if(v===null){let d=document.createElement('details'),s=document.createElement('summary');s.textContent=`${r.HistoryCount} / ${r.LatestHistoryDate??'—'}`;d.append(s,document.createTextNode(r.HistoryGameIds.join(', ')));td.append(d)}else td.textContent=v;tr.append(td)}$('games').append(tr)}}
+$('player').addEventListener('change',render);
+function activateModel(index) {
+    const priorPlayer = choices.get($('player').value);
+    currentModel = index;
+    const model = data.Models[index], split = $('dataset').value || 'Both';
+    rows = [];
+    data.Rows.forEach((row, i) => {
+        if (split !== 'Both' && row.Observation.Split !== split) return;
+        const prediction = model.PredictionsMinutes[i];
+        const predictedSeconds = prediction == null ? null : prediction * 60;
+        rows.push({...row, PredictedSeconds:predictedSeconds,
+            ResidualSeconds:predictedSeconds == null || row.Observation.RegulationSeconds == null ? null : row.Observation.RegulationSeconds-predictedSeconds,
+            HistoryCount:Math.min(row.HistoryCount,model.Lookback),
+            HistoryGameIds:row.HistoryGameIds.slice(0,model.Lookback)});
+    });
+    summary = {...data.Summary, Metrics:metrics(rows)};
+    cards('overall', summary.Metrics);
+    $('model-title').textContent = model.Name;
+    $('scope').textContent = `${split} · up to ${model.Lookback} earlier same-role games · confirmed-active regular-season population. Player selection does not change population metrics or comparison plots.`;
+    $('metadata').textContent = JSON.stringify(summary,null,2);
+    $('parameters').textContent = JSON.stringify(model.Roles,null,2);
+    $('parameter-description').textContent = model.Key === 'exponential'
+        ? 'Parameter: decay rho in [0,1]. Lag weights are proportional to rho^(lag−1) over the last ten same-role games. rho=0 uses the newest game; rho=1 gives equal weights.'
+        : model.Key === 'exponential_newest'
+        ? 'Parameters: rho and the newest-game weight q. The newest game receives q; the remaining 1−q is exponentially distributed over lags 2–10.'
+        : 'Component weights sum to one: individual newest-game weights first, followed by one weight for the mean of the next block. Missing components are omitted and available weights renormalised. Partial blocks average their available games.';
+    groups.clear(); choices.clear(); $('players').replaceChildren();
+    for (const row of rows) {
+        const key = row.Observation.RegistryId+':'+row.Observation.PlayerId;
+        if (!groups.has(key)) groups.set(key,[]);
+        groups.get(key).push(row);
+    }
+    for (const [key, playerRows] of [...groups].sort((a,b)=>a[1].at(-1).Observation.Name.localeCompare(b[1].at(-1).Observation.Name))) {
+        const player = playerRows.at(-1).Observation, label = `${player.Name} · ${player.PlayerId} · ${player.RegistryId}`;
+        choices.set(label,key);
+        const option = document.createElement('option'); option.value=label; $('players').append(option);
+    }
+    for (let tab = 0; tab < data.Models.length; tab++) $('model-tab-'+tab).setAttribute('aria-selected',tab === index ? 'true':'false');
+    populationPlot('starter-comparison','starter-count',true,'#176c98');
+    populationPlot('bench-comparison','bench-count',false,'#c25327');
+    const selected = groups.has(priorPlayer) ? priorPlayer : [...groups].sort((a,b)=>metrics(b[1]).Evaluated-metrics(a[1]).Evaluated)[0]?.[0];
+    if (selected) {
+        $('player').value = [...choices].find(choice=>choice[1] === selected)[0];
+        render();
+    }
+}
+
+data.Models.forEach((model,index)=>{
+    const tr=document.createElement('tr');
+    for (const value of [model.Name,model.Training.Evaluated.toLocaleString(),fmt(model.Training.MaeMinutes),model.Validation.Evaluated.toLocaleString(),fmt(model.Validation.MaeMinutes)]) {
+        const td=document.createElement('td');td.textContent=value;tr.append(td);
+    }
+    $('comparison').append(tr);
+    const button=document.createElement('button');button.id='model-tab-'+index;button.textContent=model.Name;
+    button.setAttribute('role','tab');button.setAttribute('aria-selected','false');
+    button.addEventListener('click',()=>activateModel(index));$('model-tabs').append(button);
+});
+$('coverage-note').textContent=`${data.Summary.Games.toLocaleString()} regular-season games read. Inactive/unknown eligibility excluded: ${data.Summary.ExcludedRows.toLocaleString()} represented player-game rows; see population-audit.json and data-quality details. The table scores all available actual/prediction pairs, including short histories, with counts shown. No validation outcomes were used to fit parameters.`;
+for (const source of data.Summary.Sources) {
+    const scored = data.Rows.reduce((count,row,index)=>count+(row.Observation.Season === source.Season && row.Observation.RegulationSeconds != null && data.Models[0].PredictionsMinutes[index] != null ? 1:0),0);
+    const tr=document.createElement('tr');
+    for (const value of [source.Season,source.Games,source.Counts['Eligibility:Active']||0,source.Counts['Eligibility:Unknown']||0,source.Counts['Eligibility:Inactive']||0,scored]) {
+        const td=document.createElement('td');td.textContent=typeof value === 'number'?value.toLocaleString():value;tr.append(td);
+    }
+    $('season-coverage').append(tr);
+}
+$('dataset').addEventListener('change',()=>activateModel(currentModel));
+activateModel(0);
+</script></html>

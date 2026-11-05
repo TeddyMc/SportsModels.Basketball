@@ -4,6 +4,8 @@ Unified basketball core contracts and a runnable in-memory example are documente
 
 Local conversion, reference acquisition, persistent identities and diagnostic report usage are documented in [docs/NBA_CONVERSION.md](docs/NBA_CONVERSION.md). Partial output is not a claim of clean or fully validated data.
 
+The Python same-role regulation-minutes models, training/validation comparison and local HTML analysis are documented in [docs/MINUTES_BASELINE.md](docs/MINUTES_BASELINE.md).
+
 Initial implementation of [Issue #2](https://github.com/TeddyMc/SportsModels.Basketball/issues/2).
 Requires the .NET 8 SDK and HTTPS access to NuGet and `stats.nba.com`.
 

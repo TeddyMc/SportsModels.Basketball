@@ -1,0 +1,54 @@
+﻿# Historical regulation-minute models
+
+Python fitting, evaluation and local HTML generation support [issue #20](https://github.com/TeddyMc/SportsModels.Basketball/issues/20). The issue owns modelling decisions and the wider factor exploration. This prototype does not complete that exploration.
+
+## Run
+
+Create an environment and install the pinned numerical dependencies (tested with Python 3.14). Generated data remains outside Git.
+
+```powershell
+python -m venv C:/Data/Basketball/tools/minutes-venv
+C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe -m pip install -r analysis/minutes/requirements.txt
+$env:OPENBLAS_NUM_THREADS = '1'
+C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe analysis/minutes/train.py --catalog C:/Data/Basketball/converted/catalog.json --output C:/Data/Basketball/analysis/minutes-model-comparison
+```
+
+Use a new output directory for each fit. Required inputs are the five selected completed version-8-compatible runs from the catalog described in [NBA_CONVERSION.md](NBA_CONVERSION.md), canonical `games/`, `games.csv`, `player-minutes.csv` and matching manifests. Raw provider JSON is not read. Missing/malformed input, duplicate identities, invalid durations or absence of converged fits fail explicitly. Selected manifest/minute-CSV hashes and per-season population/quality counts are retained.
+
+Open `index.html` directly in a browser. It contains the comparison table, a tab per model, starter/bench population comparisons, selectable-player actual/prediction and residual timelines, history IDs and MAE/coverage. Charts/cards can display training, validation or both; the comparison table always reports both. Player selection never changes population scores or comparison plots. Dots represent all scored player-games; a solid line shows mean actual minutes within one-minute prediction bands and a dashed diagonal marks perfect prediction. Individual timelines use equal game spacing and dashed season boundaries.
+
+`results.json` retains observations, history IDs, predictions, fitted parameters, optimizer diagnostics and split metrics. `comparison.csv` is the score table. `population-audit.json` records excluded inactive/unknown-eligibility observations. Refresh HTML without refitting or changing saved data, and run the offline tests:
+
+```powershell
+C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe analysis/minutes/train.py --output C:/Data/Basketball/analysis/minutes-model-comparison --render-only
+C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe -m unittest discover -s analysis/minutes -v
+```
+
+## Models, fitting and validation
+
+Parameters are fitted separately for starters and bench using **2021-22 through 2024-25 only**. **2025-26 is validation** and never enters fitting or parameter selection. Training MAE is an in-sample fitted score; validation uses frozen parameters.
+
+History uses earlier NBA game dates in the same role, newest first. Same-day outcomes cannot influence another prediction. Histories cross seasons with no reset or role blending. Earlier completed validation games may supply history for later validation predictions; they never update parameters. This is rolling one-game-ahead validation, not a whole-season forecast at its start.
+
+All four models minimise **training MAE in minutes**. No likelihood, error distribution or variance parameter is fitted. These remain weighted historical-mean model forms; MAE fitting does not establish a general conditional-mean estimator. Normalised nonnegative weights keep predictions within the historical input range. There is no intercept or player-specific parameter.
+
+| Model | Parameters per role | Components |
+|---|---|---|
+| Exponential | Decay rho in [0,1] | Last 10 same-role games with weights proportional to rho^(lag-1); zero uses newest, one gives equal weights. |
+| Exponential + newest | Decay rho, newest mass q | Newest receives q; remaining 1-q distributed exponentially over lags 2-10. |
+| Individual 5 + mean next 5 | Six component weights, sum one | Individual lags 1-5, then one weight on the arithmetic mean of lags 6-10. |
+| Individual 3 + mean next 3 | Four component weights, sum one | Individual lags 1-3, then one weight on the arithmetic mean of lags 4-6. |
+
+Short histories use available components with renormalised weights. A partial tail block averages its available games. No history or unknown role gives no prediction. Missing actuals do not prevent predictions when history exists. Confirmed zeros enter history; missing totals never become zeros. A numerical floor of 1e-8 on free component/newest weights prevents degenerate empty effective histories. Exponential lag weights may be exactly zero at decay zero.
+
+Scalar decay fitting uses a deterministic grid plus bounded local refinements. Other fits use deterministic multistart SLSQP with explicit constraints and diagnostics. Only converged finite fits are eligible; the lowest training objective is retained. MAE is nonsmooth, and multistart convergence does not certify global optimality. No optimizer start/window is selected on validation.
+
+## Population, targets and limitations
+
+History and targets are NBA regular season only (official game-ID prefix 002). The consumer uses canonical game-specific eligibility/role and matching CSV complete regulation seconds. Numeric PlausibleUncorroborated, WithComparisonWarnings, Corroborated and ConfirmedUnused observations are retained. Box-score agreement is not an admission gate. EstablishedSeconds is never substituted for an unknown complete total. Regulation portions of overtime games remain, overtime minutes are excluded. No foul, blowout, injury, rest, player-tier or performance filters/corrections are applied.
+
+Explicit inactive observations are excluded. The initial comparison also excludes unknown eligibility and never assigns unknown starting roles to bench. Older selected runs have many reconstructed-minute records missing eligibility **and role labels**, substantially limiting the training sample. Four nominal training seasons do not mean four complete labelled seasons. The report exposes per-season status and quality counts; any future evidence-based label recovery must be explicit and reproducible.
+
+Archived active/starter metadata supplies a retrospective pre-game scenario; original pre-tip publication timing is not established. There is no availability forecast for absent players. Conversion diagnostics and cross-feed comparisons provide corroboration rather than independent ground truth.
+
+MAE averages absolute errors over rows with actual and prediction. Signed error is **actual minus predicted**, so positive means underprediction. Population, observed, predicted and evaluated counts are separate; unknowns never enter averages as zeros. Counts accompany the comparison to distinguish coverage from accuracy.
