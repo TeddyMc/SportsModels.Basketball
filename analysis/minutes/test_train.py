@@ -80,7 +80,7 @@ class ModelTests(unittest.TestCase):
         features = np.full((4, 10), 20.0)
         seen = []
 
-        def fake_fit(kind, x, y):
+        def fake_fit(kind, x, y, **kwargs):
             seen.extend(y.tolist())
             parameters = [.5] if kind == "exponential" else [.5, .4] if kind == "exponential_newest" else [1/x.shape[1]]*x.shape[1]
             return parameters, {"TrainingObjectiveMae": 0}
@@ -96,7 +96,27 @@ class ModelTests(unittest.TestCase):
         metrics = train.metrics(rows, np.array([5., 5., 5.]))
         self.assertEqual(metrics["Evaluated"], 2)
         self.assertEqual(metrics["MaeMinutes"], 5)
+        self.assertEqual(metrics["MseMinutesSquared"], 25)
+        self.assertEqual(metrics["RmseMinutes"], 5)
         self.assertEqual(metrics["MeanSignedErrorMinutes"], 0)
+
+    def test_squared_error_fit_uses_mean_not_mae_on_outlier_sample(self):
+        # Constant components 0 and 10 allow any constant prediction in that range.
+        # Squared error chooses mean 2; MAE chooses median 0.
+        features = np.tile([0., 10.], (5, 1))
+        actual = np.array([0., 0., 0., 0., 10.])
+        coefficients, diagnostics = train.fit("five_plus_five", features, actual, loss="mse")
+        self.assertEqual(diagnostics["Loss"], "mse")
+        np.testing.assert_allclose(train.predict(features, coefficients), 2, atol=1e-5)
+        self.assertAlmostEqual(diagnostics["TrainingObjectiveMse"], 16, places=6)
+
+    def test_model_selection_does_not_fit_other_variants(self):
+        rows = [{"Observation": row(i, 10, role=i % 2 == 0)} for i in range(4)]
+        with patch.object(train, "fit", return_value=([1/6]*6, {"TrainingObjective": 0})) as fitter, contextlib.redirect_stdout(io.StringIO()):
+            models = train.train_models(rows, np.full((4, 10), 10.), model_keys=["five_plus_five"], loss="mse")
+        self.assertEqual([m["Key"] for m in models], ["five_plus_five"])
+        self.assertEqual(fitter.call_count, 2)
+        self.assertTrue(all(call.kwargs["loss"] == "mse" for call in fitter.call_args_list))
 
     def test_report_escapes_embedded_script_delimiters(self):
         with tempfile.TemporaryDirectory() as directory:

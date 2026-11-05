@@ -178,26 +178,37 @@ def predict(features, coefficients):
     return np.divide(numerator, denominator, out=np.full(len(features), np.nan), where=denominator > 0)
 
 
-def fit(kind, features, actual):
+def fit(kind, features, actual, loss="mae"):
+    if loss not in {"mae", "mse"}:
+        raise ValueError(f"Unsupported loss: {loss}")
+
+    def objective_value(predictions):
+        errors = predictions - actual
+        return float(np.mean(errors**2 if loss == "mse" else np.abs(errors)))
+
+    def diagnostic_value(value):
+        return {"Loss": loss, "TrainingObjective": value,
+                "TrainingObjectiveMse" if loss == "mse" else "TrainingObjectiveMae": value}
+
     if not len(actual):
         raise ValueError(f"No eligible training rows for {kind}")
     if kind == "exponential":
-        def loss(decay):
-            return float(np.mean(np.abs(predict(features, weights(kind, [decay])) - actual)))
+        def decay_loss(decay):
+            return objective_value(predict(features, weights(kind, [decay])))
         # A deterministic grid protects against relying on one nonsmooth local interval.
         grid = np.linspace(0, 1, 257)
-        losses = [loss(x) for x in grid]
+        losses = [decay_loss(x) for x in grid]
         candidates = [(losses[i], float(x)) for i, x in enumerate(grid)]
         for i in np.argsort(losses)[:8]:
             lo, hi = grid[max(0, i-1)], grid[min(len(grid)-1, i+1)]
-            result = minimize_scalar(loss, bounds=(lo, hi), method="bounded", options={"xatol": 1e-10})
+            result = minimize_scalar(decay_loss, bounds=(lo, hi), method="bounded", options={"xatol": 1e-10})
             candidates.append((float(result.fun), float(result.x)))
         value, parameter = min(candidates)
-        return [parameter], {"Success": True, "TrainingObjectiveMae": value, "Method": "grid + bounded scalar search"}
+        return [parameter], {"Success": True, **diagnostic_value(value), "Method": "grid + bounded scalar search"}
 
     if kind == "exponential_newest":
         def objective(parameters):
-            return float(np.mean(np.abs(predict(features, weights(kind, parameters)) - actual)))
+            return objective_value(predict(features, weights(kind, parameters)))
         starts = [[d, q] for d in (.2, .6, 1.) for q in (.1, .4, .8)]
         bounds = [(0, 1), (NUMERICAL_FLOOR, 1)]
         constraints = ()
@@ -206,13 +217,14 @@ def fit(kind, features, actual):
         clean, mask = np.nan_to_num(features), np.isfinite(features).astype(float)
 
         def objective(parameters):
-            return float(np.mean(np.abs(predict(features, parameters) - actual)))
+            return objective_value(predict(features, parameters))
 
         def jacobian(parameters):
             numerator, denominator = clean @ parameters, mask @ parameters
             residual = numerator / denominator - actual
             gradient = (clean * denominator[:, None] - numerator[:, None] * mask) / denominator[:, None] ** 2
-            return np.mean(np.sign(residual)[:, None] * gradient, axis=0)
+            multiplier = 2 * residual if loss == "mse" else np.sign(residual)
+            return np.mean(multiplier[:, None] * gradient, axis=0)
 
         size = features.shape[1]
         rng = np.random.default_rng(20)
@@ -230,7 +242,7 @@ def fit(kind, features, actual):
     if not candidates:
         raise RuntimeError(f"No converged training fit for {kind}")
     best = min(candidates, key=lambda r: r.fun)
-    return best.x.tolist(), {"Success": True, "TrainingObjectiveMae": float(best.fun),
+    return best.x.tolist(), {"Success": True, **diagnostic_value(float(best.fun)),
                             "Method": "deterministic multistart SLSQP", "ConvergedStarts": len(candidates),
                             "AttemptedStarts": len(starts), "Iterations": int(best.nit)}
 
@@ -243,14 +255,18 @@ def metrics(rows, predictions, split=None):
     return {"Population": len(indices), "Observed": len(observed),
             "Predicted": sum(np.isfinite(predictions[i]) for i in indices).item() if indices else 0,
             "Evaluated": len(evaluated), "MaeMinutes": float(np.mean(np.abs(errors))) if len(errors) else None,
+            "MseMinutesSquared": float(np.mean(errors**2)) if len(errors) else None,
+            "RmseMinutes": float(np.sqrt(np.mean(errors**2))) if len(errors) else None,
             "MeanSignedErrorMinutes": float(errors.mean()) if len(errors) else None}
 
 
-def train_models(rows, history):
+def train_models(rows, history, model_keys=None, loss="mae"):
     outcomes = np.array([np.nan if r["Observation"]["RegulationSeconds"] is None else r["Observation"]["RegulationSeconds"]/60 for r in rows])
     is_training = np.array([r["Observation"]["Split"] == "Training" for r in rows])
     results = []
     for kind, name, lookback in MODELS:
+        if model_keys is not None and kind not in model_keys:
+            continue
         features = grouped_features(history, 5, 5) if kind == "five_plus_five" else grouped_features(history, 3, 3) if kind == "three_plus_three" else history
         predictions = np.full(len(rows), np.nan)
         roles = {}
@@ -259,16 +275,19 @@ def train_models(rows, history):
             usable = role_mask & np.isfinite(features[:, 0])
             fit_mask = usable & is_training & np.isfinite(outcomes)
             print(f"Fitting {name} / {label}: {int(fit_mask.sum())} training rows", flush=True)
-            parameters, diagnostics = fit(kind, features[fit_mask], outcomes[fit_mask])
+            parameters, diagnostics = fit(kind, features[fit_mask], outcomes[fit_mask], loss=loss)
             coefficients = weights(kind, parameters)
             predictions[usable] = predict(features[usable], coefficients)
             roles[label] = {"Parameters": parameters, "ComponentWeights": coefficients.tolist(),
                             "TrainingRows": int(fit_mask.sum()), "Fit": diagnostics}
-            print(f"  fitted {parameters}; training MAE {diagnostics['TrainingObjectiveMae']:.6f}", flush=True)
-        results.append({"Key": kind, "Name": name, "Lookback": lookback, "Roles": roles,
+            value = diagnostics.get("TrainingObjective", diagnostics.get("TrainingObjectiveMae"))
+            print(f"  fitted {parameters}; training {loss.upper()} {value:.6f}", flush=True)
+        results.append({"Key": kind, "Name": name, "Lookback": lookback, "Loss": loss, "Roles": roles,
                         "Training": metrics(rows, predictions, "Training"),
                         "Validation": metrics(rows, predictions, "Validation"),
                         "PredictionsMinutes": [float(p) if np.isfinite(p) else None for p in predictions]})
+    if not results:
+        raise ValueError("No supported model selected")
     cohorts = [np.array([p is not None for p in model["PredictionsMinutes"]]) for model in results]
     if any(not np.array_equal(cohorts[0], cohort) for cohort in cohorts[1:]):
         raise RuntimeError("Models must be compared on the same prediction-availability cohort")
@@ -286,6 +305,8 @@ def main():
     parser.add_argument("--catalog", type=Path, default=Path("C:/Data/Basketball/converted/catalog.json"))
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--render-only", action="store_true", help="Refresh HTML from this output's saved results.json")
+    parser.add_argument("--loss", choices=("mae", "mse"), default="mae")
+    parser.add_argument("--models", nargs="+", choices=[m[0] for m in MODELS], default=None)
     args = parser.parse_args()
     if args.render_only:
         payload = json.loads((args.output / "results.json").read_text(encoding="utf-8"))
@@ -295,14 +316,15 @@ def main():
         raise FileExistsError("Use a new output directory for a new fit")
     observations, audit, sources, catalog_bytes = load_observations(args.catalog)
     rows, history = build_history(observations)
-    models = train_models(rows, history)
+    models = train_models(rows, history, model_keys=args.models, loss=args.loss)
     summary = {"TrainingSeasons": sorted(TRAIN_SEASONS), "ValidationSeason": VALIDATION_SEASON,
-               "Objective": "Training MAE in minutes; no likelihood/distribution fitted",
+               "Loss": args.loss,
+               "Objective": "Training mean squared error in minutes squared" if args.loss == "mse" else "Training MAE in minutes; no likelihood/distribution fitted",
                "Games": sum(s["Games"] for s in sources), "Sources": sources,
                "Catalog": str(args.catalog.resolve()), "CatalogSha256": sha256(catalog_bytes).hexdigest(),
                "ExcludedRows": len(audit), "ExcludedEligibility": dict(Counter(r["Eligibility"] for r in audit)),
                "NumericWeightFloor": NUMERICAL_FLOOR,
-               "Policy": "Regular-season confirmed-active observations. Same-role earlier-date history only; history crosses seasons. Parameters fitted separately per role on 2021–25 only, frozen throughout 2025–26. Earlier observed validation outcomes may enter later validation histories. Short histories use available components renormalized; partial tail blocks average their available observations. Comparison warnings and plausible uncorroborated numeric totals retained; genuinely unknown totals remain null. Archived active/starter status supplied as a retrospective pre-game scenario; publication timing is not established. Optimizers minimise a nonsmooth objective; multistart convergence is reported, not a claim of a certified global optimum."}
+               "Policy": "Regular-season confirmed-active observations. Same-role earlier-date history only; history crosses seasons. Parameters fitted separately per role on 2021–25 only, frozen throughout 2025–26. Earlier observed validation outcomes may enter later validation histories. Short histories use available components renormalized; partial tail blocks average their available observations. Comparison warnings and plausible uncorroborated numeric totals retained; genuinely unknown totals remain null. Archived active/starter status supplied as a retrospective pre-game scenario; publication timing is not established. Multistart convergence is reported, not a certificate of global optimality."}
     payload = {"Rows": rows, "Models": models, "Summary": summary}
     args.output.mkdir(parents=True)
     (args.output / "catalog.json").write_bytes(catalog_bytes)
@@ -310,10 +332,13 @@ def main():
     (args.output / "population-audit.json").write_text(json.dumps(audit, separators=(",", ":")), encoding="utf-8")
     with (args.output / "comparison.csv").open("w", newline="", encoding="utf-8") as stream:
         writer = csv.writer(stream)
-        writer.writerow(["Model", "Training N", "Training MAE minutes", "Validation N", "Validation MAE minutes"])
+        writer.writerow(["Model", "Loss", "Training N", "Training MSE min2", "Training RMSE minutes", "Training MAE minutes",
+                         "Validation N", "Validation MSE min2", "Validation RMSE minutes", "Validation MAE minutes"])
         for model in models:
-            writer.writerow([model["Name"], model["Training"]["Evaluated"], model["Training"]["MaeMinutes"],
-                             model["Validation"]["Evaluated"], model["Validation"]["MaeMinutes"]])
+            writer.writerow([model["Name"], args.loss, model["Training"]["Evaluated"], model["Training"]["MseMinutesSquared"],
+                             model["Training"]["RmseMinutes"], model["Training"]["MaeMinutes"],
+                             model["Validation"]["Evaluated"], model["Validation"]["MseMinutesSquared"],
+                             model["Validation"]["RmseMinutes"], model["Validation"]["MaeMinutes"]])
     write_report(args.output, payload)
     print((args.output / "comparison.csv").read_text(encoding="utf-8"), flush=True)
     print(f"Open {args.output / 'index.html'}", flush=True)

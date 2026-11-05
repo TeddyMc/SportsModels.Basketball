@@ -15,7 +15,7 @@ C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe analysis/minutes/train.
 
 Use a new output directory for each fit. Required inputs are the five selected completed version-8-compatible runs from the catalog described in [NBA_CONVERSION.md](NBA_CONVERSION.md), canonical `games/`, `games.csv`, `player-minutes.csv` and matching manifests. Raw provider JSON is not read. Missing/malformed input, duplicate identities, invalid durations or absence of converged fits fail explicitly. Selected manifest/minute-CSV hashes and per-season population/quality counts are retained.
 
-Open `index.html` directly in a browser. It contains the comparison table, a tab per model, starter/bench population comparisons, selectable-player actual/prediction and residual timelines, history IDs and MAE/coverage. Charts/cards can display training, validation or both; the comparison table always reports both. Player selection never changes population scores or comparison plots. Dots represent all scored player-games; a solid line shows mean actual minutes within one-minute prediction bands and a dashed diagonal marks perfect prediction. Individual timelines use equal game spacing and dashed season boundaries.
+Open `index.html` directly in a browser. It contains the score table, a tab per selected model, starter/bench population comparisons, selectable-player actual/prediction and residual timelines, history IDs and error/coverage metrics. Charts/cards can display training, validation or both; the score table always reports both. Player selection never changes population scores or comparison plots. All charts use lines without scatter markers. Population lines show mean actual minutes within one-minute prediction bands, using every scored game; a dashed diagonal marks perfect prediction. Individual timelines use equal game spacing and dashed season boundaries.
 
 `results.json` retains observations, history IDs, predictions, fitted parameters, optimizer diagnostics and split metrics. `comparison.csv` is the score table. `population-audit.json` records excluded inactive/unknown-eligibility observations. Refresh HTML without refitting or changing saved data, and run the offline tests:
 
@@ -30,7 +30,15 @@ Parameters are fitted separately for starters and bench using **2021-22 through 
 
 History uses earlier NBA game dates in the same role, newest first. Same-day outcomes cannot influence another prediction. Histories cross seasons with no reset or role blending. Earlier completed validation games may supply history for later validation predictions; they never update parameters. This is rolling one-game-ahead validation, not a whole-season forecast at its start.
 
-All four models minimise **training MAE in minutes**. No likelihood, error distribution or variance parameter is fitted. These remain weighted historical-mean model forms; MAE fitting does not establish a general conditional-mean estimator. Normalised nonnegative weights keep predictions within the historical input range. There is no intercept or player-specific parameter.
+The default fitting objective is **training MAE in minutes**. `--loss mse` instead minimises **mean squared error in minutes squared**. MSE mode reports MSE as the objective plus RMSE (its square root, in minutes) and MAE as diagnostics. No likelihood, error distribution or variance parameter is fitted. These remain weighted historical-mean model forms; MAE fitting does not establish a general conditional-mean estimator. Normalised nonnegative weights keep predictions within the historical input range. There is no intercept or player-specific parameter.
+
+To fit only individual 5 + mean next 5 with squared error and generate a single-model report:
+
+```powershell
+C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe analysis/minutes/train.py --loss mse --models five_plus_five --output C:/Data/Basketball/analysis/minutes-five-plus-five-mse
+```
+
+Starting status is given for each target game. A starter uses previous starts; a bench player uses previous bench appearances. Fitted parameters are also separate by starting role. The consumer does not predict the target starting status or combine opposite-role history.
 
 | Model | Parameters per role | Components |
 |---|---|---|
