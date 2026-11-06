@@ -6,3 +6,5 @@ NbaOfficial/
 TestResults/
 *.user
 .vs/
+__pycache__/
+.venv/
