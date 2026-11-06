@@ -196,7 +196,7 @@ def run_experiment(reference_results, output, version, dynamics_key="calendar_dr
                "Effects": model["Effects"],
                "Policy": "Independent player-role Gaussian latent means. Prior, observation noise and uncertainty-dynamics parameters fitted by training likelihood separately per role. Entire date predicted before same-day updates. Unknown actuals do not update states; validation hyperparameters remain frozen. Posterior state updates use earlier observed validation outcomes. LL is joint for same-date observations of the same player/role, in nats using minutes; higher is better. Gaussian predictive distributions have unbounded support; uncertainty is not guaranteed calibrated."}
     payload = {"Rows": rows, "Models": [model], "Summary": summary,
-               "Benchmark": {"Name": "Fixed 5 + 5 benchmark", "Version": "benchmark-v1", "PredictionsMinutes": reference["Models"][0]["PredictionsMinutes"]}}
+               "Benchmark": {"Name": "Fixed 5 + 5 benchmark", "Version": reference["Models"][0].get("Version", "benchmark-v1"), "PredictionsMinutes": reference["Models"][0]["PredictionsMinutes"]}}
     output.mkdir(parents=True)
     (output / "setup.json").write_text(json.dumps(setup, indent=2), encoding="utf-8")
     (output / "results.json").write_text(json.dumps(payload, allow_nan=False, separators=(",", ":")), encoding="utf-8")

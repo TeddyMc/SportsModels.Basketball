@@ -17,7 +17,7 @@ Use a new output directory for each fit. Required inputs are the five selected c
 
 Open `index.html` directly in a browser. It contains the score table, a tab per selected model, starter/bench population comparisons, selectable-player actual/prediction and residual timelines, history IDs and error/coverage metrics. Charts/cards can display training, validation or both; the score table always reports both. Player selection never changes population scores or comparison plots. All charts use lines without scatter markers. Population lines show mean actual minutes within one-minute prediction bands, using every scored game; a dashed diagonal marks perfect prediction. Individual timelines use equal game spacing and dashed season boundaries.
 
-`results.json` retains observations, history IDs, predictions, fitted parameters, optimizer diagnostics and split metrics. `comparison.csv` is the score table. `population-audit.json` records excluded inactive/unknown-eligibility observations. Refresh HTML without refitting or changing saved data, and run the offline tests:
+`results.json` retains observations, history IDs, predictions, fitted parameters, optimizer diagnostics and split metrics. `comparison.csv` is the score table. `population-audit.json` records excluded eligibility and explicit absence observations, including canonical reasons. Refresh HTML without refitting or changing saved data, and run the offline tests:
 
 ```powershell
 C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe analysis/minutes/train.py --output C:/Data/Basketball/analysis/minutes-model-comparison --render-only
@@ -39,6 +39,10 @@ C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe analysis/minutes/train.
 ```
 
 Starting status is given for each target game. A starter uses previous starts; a bench player uses previous bench appearances. Fitted parameters are also separate by starting role. The consumer does not predict the target starting status or combine opposite-role history.
+
+The `available-roster-v2` population requires canonical `Eligibility=Active` and excludes explicit canonical injury, rest, personal, suspension, protocol, reconditioning, trade, ineligible and not-with-team reasons before building either targets or histories. `NWT_*` and `INACTIVE_*` reasons establish absence; supported `DNP_*`/`DND_*` absence causes are enumerated in `absence_reason`. Coach decisions (`DNP_COACH`/`DND_COACH`), missing reasons and unrecognised reasons remain admitted: zero alone does not establish unavailability. Available-unused zeros still affect fitting and future predictions. This uses canonical fields, never a separate provider parser. Archived statuses are retrospective scenario inputs, not proof of availability at a live prediction cutoff.
+
+Population changes require a newly fitted 5+5 benchmark and a separate registry directory (`--registry <new-directory>/registry.json` for both fits). Historical registries remain immutable; scores from different populations must not appear as same-cohort improvements.
 
 | Model | Parameters per role | Components |
 |---|---|---|

@@ -27,6 +27,25 @@ MODELS = [
     ("three_plus_three", "Individual 3 + mean next 3", 6),
 ]
 NUMERICAL_FLOOR = 1e-8  # Prevent an empty effective history in early short-history rows.
+POPULATION_POLICY = "available-roster-v2"
+
+
+def absence_reason(player):
+    """Explicit canonical absence evidence, not an inference from zero minutes.
+
+    Coach decisions remain available-unused. Unknown reasons remain admitted.
+    """
+    reason = (player.get("NotPlayingReason") or "").strip().upper()
+    if reason.startswith(("NWT_", "INACTIVE_")):
+        return reason
+    prefix, _, cause = reason.partition("_")
+    if prefix in {"DNP", "DND"} and cause in {
+        "INJURY", "REST", "PERSONAL", "NOT_WITH_TEAM", "LEAGUE_SUSPENSION",
+        "TEAM_SUSPENSION", "HEALTH_AND_SAFETY_PROTOCOLS", "CONCUSSION_PROTOCOL",
+        "RETURN_TO_COMPETITION_RECONDITIONING", "INELIGIBLE_TO_PLAY", "TRADE",
+    }:
+        return reason
+    return None
 
 
 def read_csv(path):
@@ -87,6 +106,7 @@ def load_observations(catalog_path):
                 for player in team["Players"]:
                     counts["RepresentedRows"] += 1
                     eligibility = player.get("Eligibility", "Unknown")
+                    absence = absence_reason(player)
                     counts[f"Eligibility:{eligibility}"] += 1
                     minute = minute_rows.get((game_id, team["TeamId"], player["PlayerId"]))
                     quality = minute["availability"] if minute else "No regulation observation"
@@ -103,15 +123,19 @@ def load_observations(catalog_path):
                         "Name": player["Name"], "GameId": game_id, "Date": dates[game_id],
                         "Season": season, "Split": "Training" if season in TRAIN_SEASONS else "Validation",
                         "Started": player.get("Started"), "Active": eligibility == "Active",
+                        "NotPlayingReason": player.get("NotPlayingReason"),
+                        "NotPlayingDescription": player.get("NotPlayingDescription"),
                         "RegulationSeconds": seconds,
                         "Quality": quality, "Source": str(path),
                         "Reasons": minute["reasons"] if minute else "Missing regulation observation",
                         "EvidenceKinds": minute["evidence_kinds"] if minute else "",
                     }
-                    if eligibility == "Active":
+                    if eligibility == "Active" and not absence:
                         observations.append(row)
                     else:
-                        audit.append({**row, "Eligibility": eligibility})
+                        exclusion = "Explicit absence" if absence else "Eligibility"
+                        counts[f"Excluded:{exclusion}"] += 1
+                        audit.append({**row, "Eligibility": eligibility, "Exclusion": exclusion})
             if (game_index + 1) % 500 == 0:
                 print(f"{season}: read {game_index + 1}/{len(games)} regular-season games", flush=True)
         sources.append({"Season": season, "RunDirectory": str(run), "Games": len(games),
@@ -322,14 +346,18 @@ def main():
     observations, audit, sources, catalog_bytes = load_observations(args.catalog)
     rows, history = build_history(observations)
     models = train_models(rows, history, model_keys=args.models, loss=args.loss)
+    if args.version and len(models) == 1:
+        models[0]["Version"] = args.version
     summary = {"TrainingSeasons": sorted(TRAIN_SEASONS), "ValidationSeason": VALIDATION_SEASON,
                "Loss": args.loss,
                "Objective": "Training mean squared error in minutes squared" if args.loss == "mse" else "Training MAE in minutes; no likelihood/distribution fitted",
                "Games": sum(s["Games"] for s in sources), "Sources": sources,
                "Catalog": str(args.catalog.resolve()), "CatalogSha256": sha256(catalog_bytes).hexdigest(),
                "ExcludedRows": len(audit), "ExcludedEligibility": dict(Counter(r["Eligibility"] for r in audit)),
+               "PopulationPolicy": POPULATION_POLICY,
+               "ExcludedReasons": dict(Counter(r["NotPlayingReason"] for r in audit if r["Exclusion"] == "Explicit absence")),
                "NumericWeightFloor": NUMERICAL_FLOOR,
-               "Policy": "Regular-season confirmed-active observations. Same-role earlier-date history only; history crosses seasons. Parameters fitted separately per role on 2021–25 only, frozen throughout 2025–26. Earlier observed validation outcomes may enter later validation histories. Short histories use available components renormalized; partial tail blocks average their available observations. Comparison warnings and plausible uncorroborated numeric totals retained; genuinely unknown totals remain null. Archived active/starter status supplied as a retrospective pre-game scenario; publication timing is not established. Multistart convergence is reported, not a certificate of global optimality."}
+               "Policy": "Regular-season confirmed-active observations excluding explicit canonical injury, rest, personal, suspension, protocol, reconditioning, trade, ineligible and not-with-team absences from targets and histories. Coach-decision and unexplained available-unused zeros retained. Same-role earlier-date history only; history crosses seasons. Parameters fitted separately per role on 2021–25 only, frozen throughout 2025–26. Earlier observed validation outcomes may enter later validation histories. Short histories use available components renormalized; partial tail blocks average their available observations. Comparison warnings and plausible uncorroborated numeric totals retained; genuinely unknown totals remain null. Archived active/starter status supplied as a retrospective pre-game scenario; publication timing is not established. Multistart convergence is reported, not a certificate of global optimality."}
     payload = {"Rows": rows, "Models": models, "Summary": summary}
     args.output.mkdir(parents=True)
     (args.output / "catalog.json").write_bytes(catalog_bytes)

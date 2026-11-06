@@ -19,6 +19,42 @@ def row(day, value, role=True, split="Training", registry="registry", game=None)
 
 
 class HistoryTests(unittest.TestCase):
+    def test_absence_filter_runs_before_history_and_keeps_available_zeros(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            seasons = []
+            for season in sorted(train.TRAIN_SEASONS | {train.VALIDATION_SEASON}):
+                run = root / season
+                (run / "games").mkdir(parents=True)
+                seasons.append({"Season": season, "RunDirectory": str(run)})
+                players = [{"PlayerId": i, "Name": str(i), "Eligibility": "Active", "Started": False,
+                            "NotPlayingReason": reason} for i, reason in enumerate(
+                                ["DNP_INJURY", "DND_REST", "NWT_PERSONAL", "DNP_COACH", None, "UNRECOGNISED"], 1)]
+                (run / "manifest.json").write_text(json.dumps({"Complete": True, "Failed": 0,
+                    "RegistryId": season, "Inputs": [{"Endpoint": "playbyplayv3",
+                    "OriginalPath": "nba_20240101_0022300001.json"}]}))
+                (run / "games" / "fixture.json").write_text(json.dumps({"HomeTeam": {"TeamId": 1,
+                    "Players": players}, "AwayTeam": {"TeamId": 2, "Players": []}}))
+                (run / "games.csv").write_text("game,input\n0022300001,fixture\n")
+                (run / "player-minutes.csv").write_text("scope,game,team,player,availability,seconds,reasons,evidence_kinds\n" +
+                    "".join(f"Regulation,0022300001,1,{i},ConfirmedUnused,0,,\n" for i in range(1, 7)))
+            catalog = root / "catalog.json"
+            catalog.write_text(json.dumps({"Seasons": seasons}))
+            with contextlib.redirect_stdout(io.StringIO()):
+                observations, audit, _, _ = train.load_observations(catalog)
+            self.assertEqual({o["PlayerId"] for o in observations}, {4, 5, 6})
+            self.assertEqual({o["PlayerId"] for o in audit}, {1, 2, 3})
+            self.assertTrue(all(o["RegulationSeconds"] == 0 for o in observations))
+            rows, _ = train.build_history(observations)
+            self.assertEqual(len(rows), 15)
+
+    def test_canonical_absence_reason_semantics(self):
+        for reason in ["DND_INJURY", "DNP_REST", "NWT_NOT_WITH_TEAM", "DNP_LEAGUE_SUSPENSION",
+                       "DND_CONCUSSION_PROTOCOL", "NWT_COACH", "INACTIVE_INJURY"]:
+            self.assertEqual(train.absence_reason({"NotPlayingReason": reason}), reason)
+        for reason in [None, "", "DNP_COACH", "DND_COACH", "UNKNOWN"]:
+            self.assertIsNone(train.absence_reason({"NotPlayingReason": reason}))
+
     def test_last_ten_matching_games_not_last_ten_overall(self):
         data = [row(i, i, i % 2 == 0) for i in range(31)]
         rows, features = train.build_history(data[::-1])
