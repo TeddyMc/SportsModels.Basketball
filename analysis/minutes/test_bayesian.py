@@ -8,6 +8,7 @@ from effects import UncertaintyDynamics, get_dynamics
 from likelihoods import gaussian_log_scores
 from study import validate
 from test_train import row
+from train import population_exclusion
 
 
 def roles():
@@ -17,6 +18,19 @@ def roles():
 
 
 class BayesianTests(unittest.TestCase):
+    def test_conditional_nonappearance_neither_updates_nor_resets_elapsed_gap(self):
+        observations = [{**row(day, minutes), "Eligibility": "Active", "Played": minutes > 0}
+                        for day, minutes in [(0, 10), (2, 0), (5, 30)]]
+        rows = [{"Observation": o} for o in observations
+                if population_exclusion(o, o["RegulationSeconds"], "played") is None]
+        output = filter_rows(rows, roles())
+        self.assertEqual(output["HistoryCounts"], [0, 1])
+        self.assertAlmostEqual(output["PredictionsMinutes"][1], output["PosteriorMeansMinutes"][0])
+        self.assertAlmostEqual(output["LatentVarianceMinutesSquared"][1],
+                               output["PosteriorVariancesMinutesSquared"][0] + 5)
+        prepared = prepare_training(rows, True)
+        self.assertEqual(int(prepared[1].sum()), 2)
+
     def test_cold_start_uses_matching_prior_and_roles_do_not_borrow(self):
         rows = [{"Observation": row(0, 40, True)}, {"Observation": row(1, 10, False)},
                 {"Observation": row(2, 10, None)}]

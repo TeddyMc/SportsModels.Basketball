@@ -191,6 +191,7 @@ def run_experiment(reference_results, output, version, dynamics_key="calendar_dr
              "Effects": {"uncertainty_dynamics": dynamics.key}, "Setup": setup, "PredictiveDistribution": "gaussian_shared_latent",
              "Lookback": 0, "Loss": "gaussian_nll", "Roles": roles, **outputs, **scores}
     summary = {**reference["Summary"], "Loss": "mse", "FitObjective": "gaussian_nll",
+               "TargetPolicy": reference["Summary"]["Policy"],
                "Objective": "Training Gaussian predictive NLL; LL and MSE/RMSE/MAE evaluation",
                "ReferenceResults": str(reference_results.resolve()),
                "Effects": model["Effects"],
@@ -211,10 +212,11 @@ def run_experiment(reference_results, output, version, dynamics_key="calendar_dr
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--reference-results", type=Path, default=Path("C:/Data/Basketball/analysis/minutes-five-plus-five-mse-20261105/results.json"))
+    parser.add_argument("--reference-results", type=Path, required=True,
+                        help="Explicit benchmark results define the target population and participation ledger")
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--version", default="bayes-drift-cap-v1")
-    parser.add_argument("--registry", type=Path, default=Path("C:/Data/Basketball/analysis/model-tracking/registry.json"))
+    parser.add_argument("--version", default="bayes-drift-cap-played-v1")
+    parser.add_argument("--registry", type=Path, default=Path("C:/Data/Basketball/analysis/model-tracking-played-v1/registry.json"))
     parser.add_argument("--dynamics", default="calendar_drift_fitted_cap")
     parser.add_argument("--name")
     args = parser.parse_args()

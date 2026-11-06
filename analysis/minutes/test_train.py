@@ -41,12 +41,52 @@ class HistoryTests(unittest.TestCase):
             catalog = root / "catalog.json"
             catalog.write_text(json.dumps({"Seasons": seasons}))
             with contextlib.redirect_stdout(io.StringIO()):
-                observations, audit, _, _ = train.load_observations(catalog)
+                observations, audit, _, _ = train.load_observations(catalog, population="available")
             self.assertEqual({o["PlayerId"] for o in observations}, {4, 5, 6})
             self.assertEqual({o["PlayerId"] for o in audit}, {1, 2, 3})
             self.assertTrue(all(o["RegulationSeconds"] == 0 for o in observations))
             rows, _ = train.build_history(observations)
             self.assertEqual(len(rows), 15)
+            with contextlib.redirect_stdout(io.StringIO()):
+                conditional, excluded, _, _ = train.load_observations(catalog, population="played")
+            self.assertEqual(conditional, [])
+            self.assertEqual(len(excluded), 30)
+            self.assertEqual(sum(r["Exclusion"] == "No minutes played" for r in excluded), 15)
+            ledger = train.write_participation_ledger(root, conditional, excluded)
+            saved = json.loads((root / "participation-ledger.json").read_text())
+            self.assertEqual(ledger["Rows"], 30)
+            self.assertTrue(all(not r["IncludedInMinutesPopulation"] for r in saved))
+            self.assertEqual({r["NotPlayingReason"] for r in saved},
+                             {"DNP_INJURY", "DND_REST", "NWT_PERSONAL", "DNP_COACH", None, "UNRECOGNISED"})
+
+    def test_conditional_history_skips_zero_without_resetting_last_appearance(self):
+        observations = []
+        for day, minutes in [(0, 20), (2, 0), (5, 30)]:
+            observation = {**row(day, minutes), "Eligibility": "Active", "Played": minutes > 0}
+            if train.population_exclusion(observation, observation["RegulationSeconds"], "played") is None:
+                observations.append(observation)
+        rows, features = train.build_history(observations)
+        self.assertEqual(rows[1]["HistoryGameIds"], ["g0"])
+        self.assertEqual(features[1, 0], 20)
+        self.assertEqual(rows[1]["LatestHistoryDate"], observations[0]["Date"])
+
+    def test_participation_ledger_preserves_inactive_unknown_and_conflicting_reasons(self):
+        active = {**row(0, 12), "Eligibility": "Active", "Played": True,
+                  "NotPlayingReason": "DNP_INJURY"}
+        inactive = {**row(1, None), "Eligibility": "Inactive", "Played": False,
+                    "NotPlayingReason": "INACTIVE_INJURY", "Exclusion": "Eligibility"}
+        unused = {**row(2, 0), "Eligibility": "Active", "Played": False,
+                  "NotPlayingReason": None, "Exclusion": "No minutes played"}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            train.write_participation_ledger(root, [active], [inactive, unused])
+            saved = json.loads((root / "participation-ledger.json").read_text())
+        self.assertEqual([r["Date"] for r in saved], sorted(r["Date"] for r in saved))
+        self.assertIsNone(saved[1]["RegulationSeconds"])
+        self.assertFalse(saved[1]["Played"])
+        self.assertEqual(saved[2]["RegulationSeconds"], 0)
+        self.assertEqual(saved[0]["NotPlayingReason"], "DNP_INJURY")
+        self.assertTrue(saved[0]["IncludedInMinutesPopulation"])
 
     def test_canonical_absence_reason_semantics(self):
         for reason in ["DND_INJURY", "DNP_REST", "NWT_NOT_WITH_TEAM", "DNP_LEAGUE_SUSPENSION",

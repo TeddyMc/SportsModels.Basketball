@@ -27,7 +27,39 @@ MODELS = [
     ("three_plus_three", "Individual 3 + mean next 3", 6),
 ]
 NUMERICAL_FLOOR = 1e-8  # Prevent an empty effective history in early short-history rows.
-POPULATION_POLICY = "available-roster-v2"
+POPULATION_POLICIES = {"available": "available-roster-v2", "played": "minutes-given-positive-regulation-v1"}
+
+
+def population_exclusion(player, seconds, population):
+    """Admission only; excluded observations remain in the participation ledger."""
+    if population not in POPULATION_POLICIES:
+        raise ValueError(f"Unknown minutes population: {population}")
+    if player.get("Eligibility", "Unknown") != "Active":
+        return "Eligibility"
+    if absence_reason(player, seconds):
+        return "Explicit absence"
+    if population == "played" and (seconds == 0 or
+            (player.get("Played") is False and seconds is None)):
+        return "No minutes played"
+    return None
+
+
+def write_participation_ledger(output, observations, audit):
+    """Keep every represented regular-season roster row, including all non-appearances.
+
+    Null complete totals remain null, even for inactive players. Played/status fields
+    record non-participation without inventing a numeric minute observation.
+    """
+    records = [{**r, "IncludedInMinutesPopulation": True, "Exclusion": None} for r in observations]
+    records.extend({**r, "IncludedInMinutesPopulation": False} for r in audit)
+    records.sort(key=lambda r: (r["Date"], r["GameId"], r["PlayerId"]))
+    path = output / "participation-ledger.json"
+    path.write_text(json.dumps(records, allow_nan=False, separators=(",", ":")), encoding="utf-8")
+    return {"Path": str(path.resolve()), "Sha256": digest(path), "Rows": len(records),
+            "ExcludedByReason": dict(Counter(r["Exclusion"] for r in audit)),
+            "NonParticipationStatus": dict(Counter(
+                f"{r['Eligibility']}:{r.get('NotPlayingReason') or 'No reason supplied'}"
+                for r in records if r.get("Played") is False or r["RegulationSeconds"] == 0))}
 
 
 def absence_reason(player, seconds=None):
@@ -61,7 +93,9 @@ def digest(path):
     return sha256(path.read_bytes()).hexdigest()
 
 
-def load_observations(catalog_path):
+def load_observations(catalog_path, population="played"):
+    if population not in POPULATION_POLICIES:
+        raise ValueError(f"Unknown minutes population: {population}")
     catalog_bytes = catalog_path.read_bytes()
     catalog = json.loads(catalog_bytes.decode("utf-8-sig"))
     observations, audit, sources = [], [], []
@@ -114,31 +148,33 @@ def load_observations(catalog_path):
                     minute = minute_rows.get((game_id, team["TeamId"], player["PlayerId"]))
                     quality = minute["availability"] if minute else "No regulation observation"
                     seconds = float(minute["seconds"]) if minute and minute["seconds"] else None
+                    reported_seconds = seconds
                     # Numeric totals with comparison warnings/unverified evidence are retained.
                     # Contradictory/unestablished records do not provide complete known totals.
                     if quality in {"Contradictory", "Unestablished", "Inactive"}:
                         seconds = None
                     if seconds is not None and (not np.isfinite(seconds) or not 0 <= seconds <= 2880):
                         raise ValueError(f"Invalid canonical regulation seconds: {game_id}, {player['PlayerId']}, {seconds}")
-                    absence = absence_reason(player, seconds)
+                    exclusion = population_exclusion(player, seconds, population)
                     counts[f"Availability:{quality}"] += 1
                     row = {
                         "RegistryId": manifest["RegistryId"], "PlayerId": player["PlayerId"],
                         "Name": player["Name"], "GameId": game_id, "Date": dates[game_id],
                         "Season": season, "Split": "Training" if season in TRAIN_SEASONS else "Validation",
                         "Started": player.get("Started"), "Active": eligibility == "Active",
+                        "Eligibility": eligibility, "TeamId": team["TeamId"],
                         "Played": player.get("Played"),
                         "NotPlayingReason": player.get("NotPlayingReason"),
                         "NotPlayingDescription": player.get("NotPlayingDescription"),
                         "RegulationSeconds": seconds,
+                        "ReportedRegulationSeconds": reported_seconds,
                         "Quality": quality, "Source": str(path),
                         "Reasons": minute["reasons"] if minute else "Missing regulation observation",
                         "EvidenceKinds": minute["evidence_kinds"] if minute else "",
                     }
-                    if eligibility == "Active" and not absence:
+                    if exclusion is None:
                         observations.append(row)
                     else:
-                        exclusion = "Explicit absence" if absence else "Eligibility"
                         counts[f"Excluded:{exclusion}"] += 1
                         audit.append({**row, "Eligibility": eligibility, "Exclusion": exclusion})
             if (game_index + 1) % 500 == 0:
@@ -338,8 +374,10 @@ def main():
     parser.add_argument("--render-only", action="store_true", help="Refresh HTML from this output's saved results.json")
     parser.add_argument("--loss", choices=("mae", "mse"), default="mae")
     parser.add_argument("--models", nargs="+", choices=[m[0] for m in MODELS], default=None)
+    parser.add_argument("--population", choices=tuple(POPULATION_POLICIES), default="played",
+                        help="played: minutes conditional on a positive regulation appearance; available: historical zero-inclusive population")
     parser.add_argument("--version", help="Immutable tracking ID; defaults to output directory name")
-    parser.add_argument("--registry", type=Path, default=Path("C:/Data/Basketball/analysis/model-tracking/registry.json"))
+    parser.add_argument("--registry", type=Path, default=Path("C:/Data/Basketball/analysis/model-tracking-played-v1/registry.json"))
     parser.add_argument("--benchmark", action="store_true", help="Designate this single model as the fixed benchmark")
     args = parser.parse_args()
     if args.render_only:
@@ -348,7 +386,7 @@ def main():
         return
     if args.output.exists():
         raise FileExistsError("Use a new output directory for a new fit")
-    observations, audit, sources, catalog_bytes = load_observations(args.catalog)
+    observations, audit, sources, catalog_bytes = load_observations(args.catalog, args.population)
     rows, history = build_history(observations)
     models = train_models(rows, history, model_keys=args.models, loss=args.loss)
     if args.version and len(models) == 1:
@@ -359,12 +397,18 @@ def main():
                "Games": sum(s["Games"] for s in sources), "Sources": sources,
                "Catalog": str(args.catalog.resolve()), "CatalogSha256": sha256(catalog_bytes).hexdigest(),
                "ExcludedRows": len(audit), "ExcludedEligibility": dict(Counter(r["Eligibility"] for r in audit)),
-               "PopulationPolicy": POPULATION_POLICY,
+               "PopulationPolicy": POPULATION_POLICIES[args.population],
+               "ConditionalOnPlaying": args.population == "played",
                "ExcludedReasons": dict(Counter(r["NotPlayingReason"] for r in audit if r["Exclusion"] == "Explicit absence")),
                "NumericWeightFloor": NUMERICAL_FLOOR,
                "Policy": "Regular-season confirmed-active observations excluding explicit canonical injury, rest, personal, suspension, protocol, reconditioning, trade, ineligible and not-with-team absences from targets and histories. Coach-decision and unexplained available-unused zeros retained. Same-role earlier-date history only; history crosses seasons. Parameters fitted separately per role on 2021–25 only, frozen throughout 2025–26. Earlier observed validation outcomes may enter later validation histories. Short histories use available components renormalized; partial tail blocks average their available observations. Comparison warnings and plausible uncorroborated numeric totals retained; genuinely unknown totals remain null. Archived active/starter status supplied as a retrospective pre-game scenario; publication timing is not established. Multistart convergence is reported, not a certificate of global optimality."}
     payload = {"Rows": rows, "Models": models, "Summary": summary}
     args.output.mkdir(parents=True)
+    summary["ParticipationLedger"] = write_participation_ledger(args.output, observations, audit)
+    if args.population == "played":
+        summary["Policy"] = summary["Policy"].replace("Coach-decision and unexplained available-unused zeros retained.",
+            "All zero-minute observations are archived separately, including coach-decision and unexplained unused zeros.")
+        summary["Policy"] += " Target is regulation minutes conditional on a positive regulation appearance. All zero-minute and confirmed non-playing rows are excluded before fitting, scoring and history/state updates but preserved with inactive/active, played and absence reasons in the chronological participation ledger. Unknown totals remain null, never zero. Calendar uncertainty still grows across gaps since the last usable same-role appearance. No participation-probability or return-from-injury effect is fitted in this version."
     (args.output / "catalog.json").write_bytes(catalog_bytes)
     (args.output / "results.json").write_text(json.dumps(payload, allow_nan=False, separators=(",", ":")), encoding="utf-8")
     (args.output / "population-audit.json").write_text(json.dumps(audit, separators=(",", ":")), encoding="utf-8")

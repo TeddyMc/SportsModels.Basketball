@@ -7,6 +7,7 @@ body{font:15px system-ui;margin:24px auto;max-width:1250px;padding:0 20px;backgr
 <h1>Regulation minutes · trained model comparison</h1>
 <p class="muted">Train: 2021–22 through 2024–25 · Validation: 2025–26 · Starting role is given; fitted weights and histories are separate for starters and bench</p>
 <p id="objective-description"></p>
+<p id="participation-description" class="muted"></p>
 <details id="study-status-panel" hidden><summary>Study completion status</summary><pre id="study-status"></pre></details>
 <label id="version-metric-label" for="version-metric" hidden>Version-table error metric</label>
 <select id="version-metric" hidden><option value="RmseMinutes">RMSE (minutes)</option><option value="MseMinutesSquared">MSE (minutes²)</option><option value="MaeMinutes">MAE (minutes)</option><option value="MeanLogLikelihood">Mean predictive LL (nats/game; higher is better)</option><option value="LogLikelihoodSum">Total predictive LL (nats; higher is better)</option></select>
@@ -42,6 +43,9 @@ body{font:15px system-ui;margin:24px auto;max-width:1250px;padding:0 20px;backgr
 const data=__DATA__;
 const squaredError = data.Summary.Loss === 'mse';
 const probabilistic = data.Models.some(model=>model.PredictiveVarianceMinutesSquared);
+if(data.Summary.ConditionalOnPlaying){
+    document.getElementById('participation-description').textContent='Target: regulation minutes conditional on playing positive regulation minutes. Zero-minute games do not enter fitting, scoring or player updates. Non-appearances, inactive/active statuses and absence reasons are retained in '+data.Summary.ParticipationLedger.Path+'. Participation probability and return-from-absence adjustments are not fitted here.';
+}
 let rows=[], summary={}, currentModel=0;
 const $=id=>document.getElementById(id), fmt=x=>x==null?'—':x.toFixed(2);
 function metrics(rs){let e=rs.filter(r=>r.ResidualSeconds!=null),mse=e.length?e.reduce((s,r)=>s+(r.ResidualSeconds/60)**2,0)/e.length:null;return {Population:rs.length,Observed:rs.filter(r=>r.Observation.RegulationSeconds!=null).length,Predicted:rs.filter(r=>r.PredictedSeconds!=null).length,Evaluated:e.length,MseMinutesSquared:mse,RmseMinutes:mse==null?null:Math.sqrt(mse),MaeMinutes:e.length?e.reduce((s,r)=>s+Math.abs(r.ResidualSeconds)/60,0)/e.length:null,MeanSignedErrorMinutes:e.length?e.reduce((s,r)=>s+r.ResidualSeconds/60,0)/e.length:null}}
