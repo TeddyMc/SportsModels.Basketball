@@ -8,6 +8,12 @@ from test_train import row
 
 
 class RegistryTests(unittest.TestCase):
+    def test_point_only_models_do_not_receive_an_invented_likelihood(self):
+        score = score_groups([{"Observation": row(0, 10)}], [9])["Training"]["Overall"]
+        self.assertIsNone(score["MeanLogLikelihood"])
+        self.assertIsNone(score["LogLikelihoodSum"])
+        self.assertEqual(score["LogLikelihoodN"], 0)
+
     def test_errors_are_split_by_role_and_dataset(self):
         rows = [{"Observation": row(0, 10, True)}, {"Observation": row(1, 20, False)},
                 {"Observation": row(2, 30, True, "Validation")}, {"Observation": row(3, 0, False, "Validation")}]

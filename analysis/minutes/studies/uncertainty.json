@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "reference_results": "C:/Data/Basketball/analysis/minutes-five-plus-five-mse-20261105/results.json",
+  "experiments": [
+    {
+      "version": "bayes-drift-cap-v1",
+      "name": "Bayesian drift + fitted cap",
+      "effects": { "uncertainty_dynamics": "calendar_drift_fitted_cap" },
+      "reuse_results": "C:/Data/Basketball/analysis/bayesian-drift-cap-v1-20261106/results.json"
+    }
+  ]
+}

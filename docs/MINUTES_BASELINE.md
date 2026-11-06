@@ -30,7 +30,7 @@ Parameters are fitted separately for starters and bench using **2021-22 through 
 
 History uses earlier NBA game dates in the same role, newest first. Same-day outcomes cannot influence another prediction. Histories cross seasons with no reset or role blending. Earlier completed validation games may supply history for later validation predictions; they never update parameters. This is rolling one-game-ahead validation, not a whole-season forecast at its start.
 
-The default fitting objective is **training MAE in minutes**. `--loss mse` instead minimises **mean squared error in minutes squared**. MSE mode reports MSE as the objective plus RMSE (its square root, in minutes) and MAE as diagnostics. No likelihood, error distribution or variance parameter is fitted. These remain weighted historical-mean model forms; MAE fitting does not establish a general conditional-mean estimator. Normalised nonnegative weights keep predictions within the historical input range. There is no intercept or player-specific parameter.
+For weighted-history models, the default fitting objective is **training MAE in minutes**. `--loss mse` instead minimises **mean squared error in minutes squared**. MSE mode reports MSE as the objective plus RMSE (its square root, in minutes) and MAE as diagnostics. These point models do not fit a likelihood or variance. They remain weighted historical-mean forms; MAE fitting does not establish a general conditional-mean estimator. Normalised nonnegative weights keep predictions within the historical input range. There is no intercept or player-specific parameter. The Bayesian models below instead fit training predictive likelihood and retain player-specific posterior states.
 
 To fit only individual 5 + mean next 5 with squared error and generate a single-model report:
 
@@ -78,3 +78,29 @@ Omit `--benchmark` for candidates and supply their results path, model key and n
 The version table compares each candidate on player-games where **both candidate and fixed benchmark predict**. Full-available-population scores are retained separately in the CSV/registry, which matters for future prior-only/cold-start predictions. Alignments verify registry/player/game identities, dates, roles, actuals and split; saved experiment fingerprints are checked on regeneration.
 
 Selecting a version overlays the benchmark as grey dashed lines on individual prediction/residual timelines and population calibration curves. Calibration overlays use matched player-games. Player cards/timelines show all available observations, so future models' extra prior-only coverage remains inspectable without contaminating paired error comparisons. The benchmark tab does not duplicate its own curve.
+
+## Bayesian player-role states
+
+`bayesian.py` fits separate role-level priors and observation variances, then maintains independent expected-minute means and variances for each player/role. A known role with no history receives its role prior; an unknown role remains unavailable. The shared filter predicts every game on a date before updating from that date. Confirmed zeros update the state; unknown actuals do not. States use all earlier same-role observations through a recursive update, rather than a fixed ten-game window. Inspectable history counts reflect all those observations; the game-ID list shows only the latest ten.
+
+The first implementation is `calendar_drift_fitted_cap`: before the next observation, latent variance grows by fitted daily variance times elapsed calendar days, capped at a separately fitted role-specific value. The cap is parameterised as initial variance plus a positive fitted extra. Posterior means stay unchanged while waiting; observations update means/variances. Noise variance remains separate, so predictive variance is latent variance plus observation noise and does not collapse as a mean becomes well established. A selected-player uncertainty plot shows the two pre-game standard deviations in minutes; saved results also retain posterior means/variances.
+
+Parameters are fitted by Gaussian sequential predictive likelihood on training data only, with deterministic multistart L-BFGS-B and analytic gradients. Prior means are bounded to 0–48; positive variances are log-parameterised. Broad numerical log bounds are [-12,12] for prior/noise/extra-cap variance and [-18,8] for daily drift. Boundary hits and convergence are reported. Validation parameters stay frozen; only posterior player states update after observations. The Gaussian predictive distribution is an approximation with unbounded support, and uncertainty calibration is not guaranteed.
+
+```powershell
+C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe analysis/minutes/bayesian.py --dynamics calendar_drift_fitted_cap --version bayes-drift-cap-v2 --output C:/Data/Basketball/analysis/bayesian-cap-v2
+```
+
+The default reference is the frozen 5+5 benchmark results, ensuring identical targets, labels and split. A new Bayesian fit saves `setup.json` with effect selection, reference-result hash and implementation hashes, alongside results and its report. Version IDs are immutable; use a new ID/output for a new fit.
+
+## Interchangeable effects and batch studies
+
+An effect study holds the dataset, prior/observation family, filtering/evaluation policy and optimizer procedure fixed while selecting a named implementation for an effect slot. The current slot is `uncertainty_dynamics`. `effects.py` defines its contract: named raw parameters and bounds, decoding to physical parameters, variance propagation, propagation derivatives, and deterministic starting values. New implementations register in `DYNAMICS`; the common filter, likelihood, fitter and study runner do not require implementation-specific branches. Give changed mathematical behaviour a new implementation/version identity. Tests should check propagation rules, gradients and no-leakage invariants.
+
+`studies/uncertainty.json` is an executable example with the one approved capped implementation. Add a separate experiment/version for each agreed setup; its `effects` mapping selects the implementation. The optional `reuse_results` references an already completed fit. The runner validates all IDs/effect selections and the benchmark population before fitting, reuses only matching completed version/setup results, fits missing setups sequentially, records per-setup success/failure, and preserves successful fits if another setup fails. It does not invent or automatically add unrequested variants.
+
+```powershell
+C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe analysis/minutes/study.py analysis/minutes/studies/uncertainty.json --output C:/Data/Basketball/analysis/uncertainty-study
+```
+
+The study saves its configuration and completion statuses and generates a report containing the selected setups plus the benchmark. The persistent registry/report is refreshed too. Mean and total predictive LL are selectable alongside errors, with training/validation overall, starter and bench scores and observation counts. Higher LL is better. Log scores are in nats using minutes as the observation unit; same-date observations of one player/role receive their joint Gaussian predictive score. Full coverage includes prior-only predictions and agrees with the training likelihood objective; matched coverage makes comparison with the fixed point benchmark fair. Point-only models have blank LL unless an explicit predictive distribution is supplied—no arbitrary residual variance is assigned to the benchmark. Saved experiment predictions/parameters are not changed when additional derived LL metrics are computed.

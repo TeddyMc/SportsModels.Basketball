@@ -295,6 +295,8 @@ def train_models(rows, history, model_keys=None, loss="mae"):
 
 
 def write_report(output, payload):
+    from likelihoods import enrich_report_scores
+    payload = enrich_report_scores(payload)
     template = Path(__file__).with_name("report_template.html").read_text(encoding="utf-8")
     data = json.dumps(payload, ensure_ascii=True, allow_nan=False, separators=(",", ":")).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     (output / "index.html").write_text(template.replace("__DATA__", data), encoding="utf-8")

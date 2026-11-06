@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from train import metrics, write_report
+from likelihoods import gaussian_log_scores
 
 
 def identity(row):
@@ -22,13 +23,16 @@ def cohort_hash(rows):
     return sha256(json.dumps(values, separators=(",", ":")).encode()).hexdigest()
 
 
-def score_groups(rows, predictions):
+def score_groups(rows, predictions, predictive_variances=None, latent_variances=None):
     scores = {}
     for split in ("Training", "Validation"):
         scores[split] = {}
         for group, role in (("Overall", None), ("Starter", True), ("Bench", False)):
             indices = [i for i, row in enumerate(rows) if group == "Overall" or row["Observation"]["Started"] is role]
             scores[split][group] = metrics([rows[i] for i in indices], np.asarray([predictions[i] for i in indices], dtype=float), split)
+            scores[split][group].update(gaussian_log_scores([rows[i] for i in indices], [predictions[i] for i in indices],
+                [predictive_variances[i] for i in indices], [latent_variances[i] for i in indices] if latent_variances is not None else None, split)
+                if predictive_variances is not None else {"LogLikelihoodSum": None, "MeanLogLikelihood": None, "LogLikelihoodN": 0})
     return scores
 
 
@@ -59,7 +63,8 @@ def snapshot(payload, key, version, results_path, label=None):
             "ResultsPath": str(Path(results_path).resolve()), "Fingerprint": fingerprint,
             "CohortHash": cohort_hash(payload["Rows"]), "CatalogSha256": payload["Summary"]["CatalogSha256"],
             "RegisteredAtUtc": datetime.now(timezone.utc).isoformat(),
-            "AllAvailable": score_groups(payload["Rows"], values), "Parameters": model["Roles"]}
+            "AllAvailable": score_groups(payload["Rows"], values, model.get("PredictiveVarianceMinutesSquared"), model.get("LatentVarianceMinutesSquared")),
+            "Parameters": model["Roles"], "Effects": model.get("Effects", {"uncertainty_dynamics": "calendar_drift_fitted_cap"} if model["Key"] == "bayesian_drift_cap" else {})}
 
 
 def register(registry, entry, benchmark=False):
@@ -74,7 +79,8 @@ def register(registry, entry, benchmark=False):
         registry["Benchmark"] = entry["Version"]
 
 
-def generate(registry, output):
+def generate(registry, output, versions=None, study_statuses=None):
+    registry["ScoringVersion"] = "point-errors-and-joint-gaussian-ll-v1"
     if not registry.get("Benchmark"):
         raise ValueError("Register a benchmark before generating comparisons")
     benchmark_entry = next(e for e in registry["Versions"] if e["Version"] == registry["Benchmark"])
@@ -82,20 +88,25 @@ def generate(registry, output):
     baseline = next(m for m in benchmark_payload["Models"] if m["Key"] == benchmark_entry["ModelKey"])
     reference = benchmark_payload["Rows"]
     models = []
-    for entry in sorted(registry["Versions"], key=lambda e: e["Version"] != registry["Benchmark"]):
+    entries = [e for e in registry["Versions"] if versions is None or e["Version"] in versions or e["Version"] == registry["Benchmark"]]
+    for entry in sorted(entries, key=lambda e: e["Version"] != registry["Benchmark"]):
         payload = json.loads(Path(entry["ResultsPath"]).read_text(encoding="utf-8"))
         current = snapshot(payload, entry["ModelKey"], entry["Version"], entry["ResultsPath"])
         if current["Fingerprint"] != entry["Fingerprint"]:
             raise ValueError(f"Saved experiment changed: {entry['Version']}")
         model = next(m for m in payload["Models"] if m["Key"] == entry["ModelKey"])
         aligned = align_to(reference, payload["Rows"], model["PredictionsMinutes"])
+        row_arrays = {field: align_to(reference, payload["Rows"], model[field]) for field in
+                      ("HistoryCounts", "LatestHistoryDates", "LatentVarianceMinutesSquared", "PredictiveVarianceMinutesSquared", "PosteriorMeansMinutes", "PosteriorVariancesMinutesSquared") if field in model}
         # Compare only where both models can predict; retain the full-coverage scores separately.
         common = [v is not None and b is not None for v, b in zip(aligned, baseline["PredictionsMinutes"])]
         paired = [v if available else None for v, available in zip(aligned, common)]
         paired_baseline = [v if available else None for v, available in zip(baseline["PredictionsMinutes"], common)]
-        entry["Matched"] = score_groups(reference, paired)
+        entry["AllAvailable"] = current["AllAvailable"]
+        entry["Effects"] = current["Effects"]
+        entry["Matched"] = score_groups(reference, paired, row_arrays.get("PredictiveVarianceMinutesSquared"), row_arrays.get("LatentVarianceMinutesSquared"))
         entry["MatchedBenchmark"] = score_groups(reference, paired_baseline)
-        model = {**model, "Key": entry["Version"], "ModelKind": entry["ModelKey"],
+        model = {**model, **row_arrays, "Effects": entry["Effects"], "Key": entry["Version"], "ModelKind": entry["ModelKey"],
                  "Version": entry["Version"], "Name": entry["Label"], "FitObjective": entry["Loss"],
                  "GroupedScores": entry["Matched"], "FullCoverageScores": entry["AllAvailable"],
                  "Training": entry["Matched"]["Training"]["Overall"],
@@ -103,8 +114,11 @@ def generate(registry, output):
                  "PredictionsMinutes": aligned}
         models.append(model)
     summary = {**benchmark_payload["Summary"], "VersionRegistry": True, "Loss": "mse",
+               "ScoringVersion": registry["ScoringVersion"],
                "BenchmarkVersion": registry["Benchmark"],
                "ComparisonPolicy": "Table uses player-games where candidate and fixed benchmark both predict. Full-coverage scores are retained separately. Individual timelines show all available predictions. Fit objectives may differ; displayed errors have the same definitions."}
+    if study_statuses is not None:
+        summary["StudyStatuses"] = study_statuses
     output.mkdir(parents=True, exist_ok=True)
     write_report(output, {"Rows": reference, "Models": models, "Summary": summary,
                           "Benchmark": {"Name": benchmark_entry["Label"], "Version": registry["Benchmark"],
@@ -112,13 +126,14 @@ def generate(registry, output):
     import csv
     with (output / "model-versions.csv").open("w", encoding="utf-8", newline="") as stream:
         writer = csv.writer(stream)
-        writer.writerow(["Version", "Model", "Fit objective", "Split", "Role", "Coverage", "Scored N", "MSE min2", "RMSE min", "MAE min", "Benchmark MSE min2", "Catalog hash"])
-        for entry in registry["Versions"]:
+        writer.writerow(["Version", "Model", "Fit objective", "Split", "Role", "Coverage", "Scored N", "MSE min2", "RMSE min", "MAE min", "LL sum nats", "Mean LL nats", "LL N", "Benchmark MSE min2", "Catalog hash"])
+        for entry in entries:
             for coverage, scores in (("AllAvailable", entry["AllAvailable"]), ("Matched", entry["Matched"])):
                 for split, groups in scores.items():
                     for role, score in groups.items():
                         writer.writerow([entry["Version"], entry["Label"], entry["Loss"], split, role, coverage,
                                          score["Evaluated"], score["MseMinutesSquared"], score["RmseMinutes"], score["MaeMinutes"],
+                                         score["LogLikelihoodSum"], score["MeanLogLikelihood"], score["LogLikelihoodN"],
                                          entry["MatchedBenchmark"][split][role]["MseMinutesSquared"] if coverage == "Matched" else "", entry["CatalogSha256"]])
 
 
