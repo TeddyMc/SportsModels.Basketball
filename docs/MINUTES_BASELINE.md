@@ -42,7 +42,7 @@ Starting status is given for each target game. A starter uses previous starts; a
 
 The `available-roster-v2` population requires canonical `Eligibility=Active` and excludes explicit canonical injury, rest, personal, suspension, protocol, reconditioning, trade, ineligible and not-with-team reasons before building either targets or histories. `NWT_*` and `INACTIVE_*` reasons establish absence; supported `DNP_*`/`DND_*` absence causes are enumerated in `absence_reason`. Coach decisions (`DNP_COACH`/`DND_COACH`), missing reasons and unrecognised reasons remain admitted: zero alone does not establish unavailability. Available-unused zeros still affect fitting and future predictions. This uses canonical fields, never a separate provider parser. Archived statuses are retrospective scenario inputs, not proof of availability at a live prediction cutoff.
 
-Population changes require a newly fitted 5+5 benchmark and a separate registry directory (`--registry <new-directory>/registry.json` for both fits). Historical registries remain immutable; scores from different populations must not appear as same-cohort improvements.
+Recorded participation (`Played=true` or a positive established regulation total) takes precedence over a conflicting absence reason. Some feeds retain injury reasons even for players with corroborated appearances; these games remain admitted, including short injury exits. Population changes require a newly fitted 5+5 benchmark and a separate registry directory (`--registry <new-directory>/registry.json` for both fits). Historical registries remain immutable; scores from different populations must not appear as same-cohort improvements.
 
 | Model | Parameters per role | Components |
 |---|---|---|

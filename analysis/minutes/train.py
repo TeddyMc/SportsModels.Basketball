@@ -30,11 +30,15 @@ NUMERICAL_FLOOR = 1e-8  # Prevent an empty effective history in early short-hist
 POPULATION_POLICY = "available-roster-v2"
 
 
-def absence_reason(player):
+def absence_reason(player, seconds=None):
     """Explicit canonical absence evidence, not an inference from zero minutes.
 
     Coach decisions remain available-unused. Unknown reasons remain admitted.
     """
+    # Some retained feeds carry stale absence reasons on players who did play.
+    # Participation evidence takes precedence; never discard an actual appearance.
+    if player.get("Played") is True or (seconds is not None and seconds > 0):
+        return None
     reason = (player.get("NotPlayingReason") or "").strip().upper()
     if reason.startswith(("NWT_", "INACTIVE_")):
         return reason
@@ -106,7 +110,6 @@ def load_observations(catalog_path):
                 for player in team["Players"]:
                     counts["RepresentedRows"] += 1
                     eligibility = player.get("Eligibility", "Unknown")
-                    absence = absence_reason(player)
                     counts[f"Eligibility:{eligibility}"] += 1
                     minute = minute_rows.get((game_id, team["TeamId"], player["PlayerId"]))
                     quality = minute["availability"] if minute else "No regulation observation"
@@ -117,12 +120,14 @@ def load_observations(catalog_path):
                         seconds = None
                     if seconds is not None and (not np.isfinite(seconds) or not 0 <= seconds <= 2880):
                         raise ValueError(f"Invalid canonical regulation seconds: {game_id}, {player['PlayerId']}, {seconds}")
+                    absence = absence_reason(player, seconds)
                     counts[f"Availability:{quality}"] += 1
                     row = {
                         "RegistryId": manifest["RegistryId"], "PlayerId": player["PlayerId"],
                         "Name": player["Name"], "GameId": game_id, "Date": dates[game_id],
                         "Season": season, "Split": "Training" if season in TRAIN_SEASONS else "Validation",
                         "Started": player.get("Started"), "Active": eligibility == "Active",
+                        "Played": player.get("Played"),
                         "NotPlayingReason": player.get("NotPlayingReason"),
                         "NotPlayingDescription": player.get("NotPlayingDescription"),
                         "RegulationSeconds": seconds,

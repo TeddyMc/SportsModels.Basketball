@@ -54,6 +54,8 @@ class HistoryTests(unittest.TestCase):
             self.assertEqual(train.absence_reason({"NotPlayingReason": reason}), reason)
         for reason in [None, "", "DNP_COACH", "DND_COACH", "UNKNOWN"]:
             self.assertIsNone(train.absence_reason({"NotPlayingReason": reason}))
+        self.assertIsNone(train.absence_reason({"NotPlayingReason": "DNP_INJURY", "Played": True}))
+        self.assertIsNone(train.absence_reason({"NotPlayingReason": "DNP_INJURY"}, seconds=30))
 
     def test_last_ten_matching_games_not_last_ten_overall(self):
         data = [row(i, i, i % 2 == 0) for i in range(31)]
