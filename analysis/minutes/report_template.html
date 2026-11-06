@@ -237,7 +237,7 @@ data.Models.forEach((model,index)=>{
     button.setAttribute('role','tab');button.setAttribute('aria-selected','false');
     button.addEventListener('click',()=>activateModel(index));$('model-tabs').append(button);
 });
-$('coverage-note').textContent=`${data.Summary.Games.toLocaleString()} regular-season games read. Inactive/unknown eligibility excluded: ${data.Summary.ExcludedRows.toLocaleString()} represented player-game rows; see population-audit.json and data-quality details. The table scores all available actual/prediction pairs, including short histories, with counts shown. No validation outcomes were used to fit parameters.`;
+$('coverage-note').textContent=`${data.Summary.Games.toLocaleString()} regular-season games read. Excluded by eligibility/availability: ${data.Summary.ExcludedRows.toLocaleString()} represented player-game rows; see population-audit.json and data-quality details. The table scores all available actual/prediction pairs, including short histories, with counts shown. No validation outcomes were used to fit parameters.`;
 if(data.Summary.VersionRegistry){
     $('version-metric-label').hidden=false;$('version-metric').hidden=false;
     $('version-coverage').hidden=false;if(probabilistic)$('version-metric').value='MeanLogLikelihood';
