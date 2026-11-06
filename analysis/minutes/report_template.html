@@ -7,6 +7,8 @@ body{font:15px system-ui;margin:24px auto;max-width:1250px;padding:0 20px;backgr
 <h1>Regulation minutes · trained model comparison</h1>
 <p class="muted">Train: 2021–22 through 2024–25 · Validation: 2025–26 · Starting role is given; fitted weights and histories are separate for starters and bench</p>
 <p id="objective-description"></p>
+<label id="version-metric-label" for="version-metric" hidden>Version-table error metric</label>
+<select id="version-metric" hidden><option value="RmseMinutes">RMSE (minutes)</option><option value="MseMinutesSquared">MSE (minutes²)</option><option value="MaeMinutes">MAE (minutes)</option></select>
 <div class="scroll"><table><thead><tr id="comparison-head"></tr></thead><tbody id="comparison"></tbody></table></div>
 <p id="coverage-note" class="muted"></p>
 <details><summary>Per-season data coverage</summary><p>Counts reflect the selected conversion runs. Genuine unknown eligibility and starting roles remain explicit; unknown status is never assigned to bench. Scoring also requires an actual minute total and earlier same-role history.</p><table><thead><tr><th>Season</th><th>Games</th><th>Known active</th><th>Unknown eligibility</th><th>Active, role unknown</th><th>Inactive</th><th>Scored player-games</th></tr></thead><tbody id="season-coverage"></tbody></table></details>
@@ -19,7 +21,7 @@ body{font:15px system-ui;margin:24px auto;max-width:1250px;padding:0 20px;backgr
 <div id="overall" class="cards"></div><p id="scope"></p>
 <details><summary>Data quality, provenance and limitations</summary><pre id="metadata"></pre></details>
 <h2>Predicted versus actual · all player-games</h2>
-<p>The solid line shows mean actual minutes within one-minute prediction bands, using all player-games with actual and prediction available. The dashed diagonal is perfect prediction (actual = predicted). No scatter points are drawn. These population plots stay fixed when you select a player.</p>
+<p>The solid line shows mean actual minutes within one-minute prediction bands. In benchmark comparisons, the grey dashed line is the fixed benchmark and both lines use matched player-games. The dark dashed diagonal is perfect prediction. These population plots stay fixed when you select a player.</p>
 <div class="population-plots">
 <section><h3>Starters</h3><p id="starter-count" class="muted"></p><svg id="starter-comparison" viewBox="0 0 550 500" role="img" aria-label="All starter player-games: predicted versus actual minutes with perfect prediction reference"></svg></section>
 <section><h3>Bench</h3><p id="bench-count" class="muted"></p><svg id="bench-comparison" viewBox="0 0 550 500" role="img" aria-label="All bench player-games: predicted versus actual minutes with perfect prediction reference"></svg></section>
@@ -27,7 +29,7 @@ body{font:15px system-ui;margin:24px auto;max-width:1250px;padding:0 20px;backgr
 <label for="player">Search/select any confirmed active player (name · internal ID · registry)</label>
 <input id="player" list="players" autocomplete="off"><datalist id="players"></datalist>
 <p id="selected"></p><div id="individual" class="cards"></div><p id="empty"></p>
-<h2>Actual and pre-game prediction</h2><p><span style="color:#176c98">Actual line</span> · <span style="color:#c25327">Predicted line</span>. Games are equally spaced in chronological order; dashed vertical lines mark each season's first represented game. Hover line segments for dates and game details. Missing values break lines.</p>
+<h2>Actual and pre-game prediction</h2><p><span style="color:#176c98">Actual line</span> · <span style="color:#c25327">Selected model</span> · grey dashed = benchmark when comparing versions. Games are equally spaced; dashed vertical lines mark each season's first represented game. Hover line segments for details. Missing values break lines.</p>
 <svg id="minutes" viewBox="0 0 1150 290" role="img" aria-label="Chronological actual versus predicted regulation minutes"></svg>
 <h2>Residuals</h2><p class="muted">Residual = actual minus predicted minutes; positive means actual exceeded prediction.</p>
 <svg id="residuals" viewBox="0 0 1150 250" role="img" aria-label="Chronological residual minutes"></svg>
@@ -42,6 +44,7 @@ function metrics(rs){let e=rs.filter(r=>r.ResidualSeconds!=null),mse=e.length?e.
 function cards(id,m){$(id).replaceChildren();const values=[['Player-games',m.Population.toLocaleString()],['Observed',m.Observed.toLocaleString()],['Predicted / evaluated',m.Predicted.toLocaleString()+' / '+m.Evaluated.toLocaleString()]];if(squaredError)values.push(['MSE minutes²',fmt(m.MseMinutesSquared)],['RMSE minutes',fmt(m.RmseMinutes)]);values.push(['MAE minutes',fmt(m.MaeMinutes)],['Signed error minutes',fmt(m.MeanSignedErrorMinutes)]);for(let [k,v] of values){let c=document.createElement('div');c.className='card';let n=document.createElement('div');n.className='value';n.textContent=v;c.append(n,document.createTextNode(k));$(id).append(c)}}
 const groups=new Map(), choices=new Map();
 const ns='http://www.w3.org/2000/svg';function el(tag,attrs,text){let n=document.createElementNS(ns,tag);for(let [k,v]of Object.entries(attrs))n.setAttribute(k,v);if(text!=null)n.textContent=text;return n}
+function comparingBenchmark(){return data.Benchmark && data.Models[currentModel].Version !== data.Benchmark.Version}
 function season(row) {
     const match = /^\d{3}(\d{2})\d{5}$/.exec(row.Observation.GameId);
     if (!match) return 'Season unavailable';
@@ -79,6 +82,7 @@ function plot(id, rs, residual) {
     });
 
     const series = residual ? [['ResidualSeconds', '#7358a5']] : [['actual', '#176c98'], ['PredictedSeconds', '#c25327']];
+    if(comparingBenchmark())series.push([residual?'BenchmarkResidualSeconds':'BenchmarkPredictedSeconds','#687b8c']);
     for (const [field, color] of series) {
         let previous = null;
         rs.forEach((row, index) => {
@@ -87,6 +91,7 @@ function plot(id, rs, residual) {
             const point = {x:x(index), y:y(raw/60)};
             if (previous) {
                 const segment=el('line', {x1:previous.x, y1:previous.y, x2:point.x, y2:point.y, stroke:color, 'stroke-width':1.4, 'data-series':field});
+                if(field.startsWith('Benchmark'))segment.setAttribute('stroke-dasharray','5 4');
                 segment.append(el('title', {}, `${row.Observation.Date} · ${row.Observation.GameId} · ${field}: ${fmt(raw/60)} min · role ${row.Observation.Started} · history ${row.HistoryCount}`));
                 svg.append(segment);
             }
@@ -98,7 +103,7 @@ function plot(id, rs, residual) {
 function populationPlot(id, countId, started, color) {
     const svg = $(id), roleRows = rows.filter(row => row.Observation.Started === started);
     svg.replaceChildren();
-    const evaluated = roleRows.filter(row => row.PredictedSeconds != null && row.Observation.RegulationSeconds != null);
+    const evaluated = roleRows.filter(row => row.PredictedSeconds != null && row.Observation.RegulationSeconds != null && (!comparingBenchmark() || row.BenchmarkPredictedSeconds != null));
     $(countId).textContent = `${evaluated.length.toLocaleString()} player-games contribute to the line; ${(roleRows.length-evaluated.length).toLocaleString()} missing actual or prediction.`;
     const left = 58, right = 524, top = 18, bottom = 442;
     const x = value => left + value / 48 * (right-left), y = value => bottom - value / 48 * (bottom-top);
@@ -112,19 +117,21 @@ function populationPlot(id, countId, started, color) {
     svg.append(el('text', {x:(left+right)/2, y:490, 'text-anchor':'middle', 'font-size':13, fill:'#172638'}, 'Predicted minutes'),
         el('text', {x:16, y:(top+bottom)/2, transform:`rotate(-90 16 ${(top+bottom)/2})`, 'text-anchor':'middle', 'font-size':13, fill:'#172638'}, 'Actual minutes'));
 
-    const bins = new Map();
-    for (const row of evaluated) {
-        const predicted = row.PredictedSeconds/60, actual = row.Observation.RegulationSeconds/60;
-        const key = Math.floor(predicted);
-        if (!bins.has(key)) bins.set(key, {predicted:0, actual:0, count:0});
-        const bin = bins.get(key);
-        bin.predicted += predicted;
-        bin.actual += actual;
-        bin.count++;
+    function meanLine(field,stroke,dashed){
+        const bins = new Map();
+        for (const row of evaluated) {
+            const predicted = row[field]/60, actual = row.Observation.RegulationSeconds/60;
+            const key = Math.floor(predicted);
+            if (!bins.has(key)) bins.set(key, {predicted:0, actual:0, count:0});
+            const bin = bins.get(key);
+            bin.predicted += predicted;bin.actual += actual;bin.count++;
+        }
+        const points = [...bins].sort((a,b) => a[0]-b[0]).map(([,bin]) => `${x(bin.predicted/bin.count)},${y(bin.actual/bin.count)}`).join(' ');
+        const line=el('polyline', {points, fill:'none', stroke, 'stroke-width':2.5, 'data-mean-line':field});
+        if(dashed)line.setAttribute('stroke-dasharray','6 4');svg.append(line);
     }
-
-    const points = [...bins].sort((a,b) => a[0]-b[0]).map(([,bin]) => `${x(bin.predicted/bin.count)},${y(bin.actual/bin.count)}`).join(' ');
-    svg.append(el('polyline', {points, fill:'none', stroke:color, 'stroke-width':2.5, 'data-mean-line':'one-minute prediction bands'}));
+    if(comparingBenchmark())meanLine('BenchmarkPredictedSeconds','#687b8c',true);
+    meanLine('PredictedSeconds',color,false);
     svg.append(el('line', {x1:x(0), y1:y(0), x2:x(48), y2:y(48), stroke:'#24384b', 'stroke-width':2,
         'stroke-dasharray':'7 5', 'data-perfect-prediction':'true'}));
     if (evaluated.length === 0) svg.append(el('text', {x:(left+right)/2, y:(top+bottom)/2, 'text-anchor':'middle', fill:'#516377'}, 'No evaluated player-games'));
@@ -141,7 +148,11 @@ function activateModel(index) {
         if (split !== 'Both' && row.Observation.Split !== split) return;
         const prediction = model.PredictionsMinutes[i];
         const predictedSeconds = prediction == null ? null : prediction * 60;
+        const baseline = data.Benchmark?.PredictionsMinutes[i];
+        const baselineSeconds = baseline == null ? null : baseline*60;
         rows.push({...row, PredictedSeconds:predictedSeconds,
+            BenchmarkPredictedSeconds:baselineSeconds,
+            BenchmarkResidualSeconds:baselineSeconds == null || row.Observation.RegulationSeconds == null ? null : row.Observation.RegulationSeconds-baselineSeconds,
             ResidualSeconds:predictedSeconds == null || row.Observation.RegulationSeconds == null ? null : row.Observation.RegulationSeconds-predictedSeconds,
             HistoryCount:Math.min(row.HistoryCount,model.Lookback),
             HistoryGameIds:row.HistoryGameIds.slice(0,model.Lookback)});
@@ -152,9 +163,10 @@ function activateModel(index) {
     $('scope').textContent = `${split} · up to ${model.Lookback} earlier same-role games · confirmed-active regular-season population. Player selection does not change population metrics or comparison plots.`;
     $('metadata').textContent = JSON.stringify(summary,null,2);
     $('parameters').textContent = JSON.stringify(model.Roles,null,2);
-    $('parameter-description').textContent = model.Key === 'exponential'
+    const modelKind=model.ModelKind||model.Key;
+    $('parameter-description').textContent = modelKind === 'exponential'
         ? 'Parameter: decay rho in [0,1]. Lag weights are proportional to rho^(lag−1) over the last ten same-role games. rho=0 uses the newest game; rho=1 gives equal weights.'
-        : model.Key === 'exponential_newest'
+        : modelKind === 'exponential_newest'
         ? 'Parameters: rho and the newest-game weight q. The newest game receives q; the remaining 1−q is exponentially distributed over lags 2–10.'
         : 'Component weights sum to one: individual newest-game weights first, followed by one weight for the mean of the next block. Missing components are omitted and available weights renormalised. Partial blocks average their available games.';
     groups.clear(); choices.clear(); $('players').replaceChildren();
@@ -182,6 +194,22 @@ const headings=['Model','Training scored games',squaredError?'Training MSE (min�
 if(squaredError)headings.push('Training RMSE (min)','Validation RMSE (min)','Training MAE (min)','Validation MAE (min)');
 for(const label of headings){const th=document.createElement('th');th.textContent=label;$('comparison-head').append(th)}
 $('objective-description').textContent=`Fitted objective: ${squaredError?'mean squared error (MSE), in minutes squared. RMSE is its square root in minutes; MAE is shown as an additional diagnostic':'mean absolute error (MAE), in minutes'}. Lower is better. Starting status is given, and each target uses only earlier history in that same role. Parameters stay frozen during validation; earlier completed validation outcomes may enter later histories. No likelihood is fitted.`;
+function versionTable(){
+    if(!data.Summary.VersionRegistry)return;
+    $('comparison-head').replaceChildren();$('comparison').replaceChildren();
+    const metric=$('version-metric').value||'RmseMinutes';
+    const labels=['Version / model','Fit objective','Train overall','Train starter','Train bench','Validation overall','Validation starter','Validation bench'];
+    for(const text of labels){const th=document.createElement('th');th.textContent=text;$('comparison-head').append(th)}
+    for(const model of data.Models){
+        const tr=document.createElement('tr');
+        for(const text of [model.Version+' · '+model.Name,model.FitObjective]){const td=document.createElement('td');td.textContent=text;tr.append(td)}
+        for(const split of ['Training','Validation'])for(const group of ['Overall','Starter','Bench']){
+            const score=model.GroupedScores[split][group],td=document.createElement('td');
+            td.textContent=(score[metric]==null?'—':score[metric].toFixed(3))+' · n='+score.Evaluated.toLocaleString();tr.append(td);
+        }
+        $('comparison').append(tr);
+    }
+}
 data.Models.forEach((model,index)=>{
     const tr=document.createElement('tr');
     const values=[model.Name,model.Training.Evaluated.toLocaleString(),fmt(squaredError?model.Training.MseMinutesSquared:model.Training.MaeMinutes),model.Validation.Evaluated.toLocaleString(),fmt(squaredError?model.Validation.MseMinutesSquared:model.Validation.MaeMinutes)];
@@ -195,6 +223,12 @@ data.Models.forEach((model,index)=>{
     button.addEventListener('click',()=>activateModel(index));$('model-tabs').append(button);
 });
 $('coverage-note').textContent=`${data.Summary.Games.toLocaleString()} regular-season games read. Inactive/unknown eligibility excluded: ${data.Summary.ExcludedRows.toLocaleString()} represented player-game rows; see population-audit.json and data-quality details. The table scores all available actual/prediction pairs, including short histories, with counts shown. No validation outcomes were used to fit parameters.`;
+if(data.Summary.VersionRegistry){
+    $('version-metric-label').hidden=false;$('version-metric').hidden=false;
+    $('version-metric').addEventListener('change',versionTable);versionTable();
+    $('objective-description').textContent=`Fixed benchmark: ${data.Summary.BenchmarkVersion}. Each version retains its fitted objective and parameters. The table reports matched player-games, with counts in every cell; full-coverage scores are retained separately in model-versions.csv and registry.json. Player cards/timelines show all available predictions. Starting role is given; histories and fitted parameters remain separate by role.`;
+    $('coverage-note').textContent=`${data.Summary.Games.toLocaleString()} regular-season games. Version-table errors use the same player-games as the benchmark for each comparison. No validation outcomes are used to fit model parameters. Keep this table's data snapshot fixed when assessing a model change.`;
+}
 for (const source of data.Summary.Sources) {
     const scored = data.Rows.reduce((count,row,index)=>count+(row.Observation.Season === source.Season && row.Observation.RegulationSeconds != null && data.Models[0].PredictionsMinutes[index] != null ? 1:0),0);
     const unknownRole = data.Rows.filter(row=>row.Observation.Season === source.Season && row.Observation.Started == null).length;

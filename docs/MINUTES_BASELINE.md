@@ -60,3 +60,21 @@ Explicit inactive and unknown-eligibility observations are excluded; unknown sta
 Archived active/starter metadata supplies a retrospective pre-game scenario; original pre-tip publication timing is not established. There is no availability forecast for absent players. Conversion diagnostics and cross-feed comparisons provide corroboration rather than independent ground truth.
 
 MAE averages absolute errors over rows with actual and prediction. Signed error is **actual minus predicted**, so positive means underprediction. Population, observed, predicted and evaluated counts are separate; unknowns never enter averages as zeros. Counts accompany the comparison to distinguish coverage from accuracy.
+
+## Model versions and fixed benchmark
+
+The latest squared-error individual-5-plus-mean-next-5 experiment is frozen as `benchmark-v1`. The persistent version registry is `C:/Data/Basketball/analysis/model-tracking/registry.json`; its `index.html` displays training/validation errors overall and separately for starters and bench. Choose RMSE, MSE or MAE in the table. `model-versions.csv` retains all metrics, counts, fit objectives and data hashes. Numerical outputs remain local, outside Git.
+
+Every new fit automatically registers its results there. Use `--version candidate-v2` for an explicit immutable version ID; otherwise the output directory name is used. Version IDs cannot replace different predictions/parameters, and the benchmark cannot be silently replaced. Historical fit objectives stay recorded; they do not alter the definitions of displayed error metrics. Use a new registry/explicitly re-evaluated benchmark for changed data: population or target mismatches are rejected rather than presented as a model improvement.
+
+To initialise a registry from an existing benchmark result, or add an existing experiment:
+
+```powershell
+C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe analysis/minutes/registry.py --registry C:/Data/Basketball/analysis/model-tracking/registry.json --output C:/Data/Basketball/analysis/model-tracking --results C:/Data/Basketball/analysis/minutes-five-plus-five-mse-20261105/results.json --model five_plus_five --version benchmark-v1 --benchmark
+```
+
+Omit `--benchmark` for candidates and supply their results path, model key and new version. A new fit can designate its single selected model with `--benchmark`; a multi-model fit cannot. Before any benchmark is registered, fits are recorded but matched visual comparisons are unavailable. Run one registry writer at a time.
+
+The version table compares each candidate on player-games where **both candidate and fixed benchmark predict**. Full-available-population scores are retained separately in the CSV/registry, which matters for future prior-only/cold-start predictions. Alignments verify registry/player/game identities, dates, roles, actuals and split; saved experiment fingerprints are checked on regeneration.
+
+Selecting a version overlays the benchmark as grey dashed lines on individual prediction/residual timelines and population calibration curves. Calibration overlays use matched player-games. Player cards/timelines show all available observations, so future models' extra prior-only coverage remains inspectable without contaminating paired error comparisons. The benchmark tab does not duplicate its own curve.

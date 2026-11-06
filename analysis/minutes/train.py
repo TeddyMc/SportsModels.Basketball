@@ -307,6 +307,9 @@ def main():
     parser.add_argument("--render-only", action="store_true", help="Refresh HTML from this output's saved results.json")
     parser.add_argument("--loss", choices=("mae", "mse"), default="mae")
     parser.add_argument("--models", nargs="+", choices=[m[0] for m in MODELS], default=None)
+    parser.add_argument("--version", help="Immutable tracking ID; defaults to output directory name")
+    parser.add_argument("--registry", type=Path, default=Path("C:/Data/Basketball/analysis/model-tracking/registry.json"))
+    parser.add_argument("--benchmark", action="store_true", help="Designate this single model as the fixed benchmark")
     args = parser.parse_args()
     if args.render_only:
         payload = json.loads((args.output / "results.json").read_text(encoding="utf-8"))
@@ -340,6 +343,8 @@ def main():
                              model["Validation"]["Evaluated"], model["Validation"]["MseMinutesSquared"],
                              model["Validation"]["RmseMinutes"], model["Validation"]["MaeMinutes"]])
     write_report(args.output, payload)
+    from registry import update_from_results
+    update_from_results(args.registry, args.output / "results.json", args.version or args.output.name, args.benchmark)
     print((args.output / "comparison.csv").read_text(encoding="utf-8"), flush=True)
     print(f"Open {args.output / 'index.html'}", flush=True)
 
