@@ -50,15 +50,15 @@ if(data.Summary.ConditionalOnPlaying){
 if(data.Summary.TypicalMinutes){
     document.title='Expected typical minutes - competitive, undisturbed deployment';
     document.querySelector('h1').textContent=document.title;
+    document.querySelectorAll('h2,h3,p,th').forEach(node=>{
+        if(!node.children.length)node.textContent=node.textContent.replace(/actual/gi,'target label');
+    });
     document.getElementById('participation-description').textContent=data.Summary.TargetDescription;
     document.getElementById('typical-audit-panel').hidden=false;
     const targetHeader=document.getElementById('games').closest('table').querySelector('thead tr').children[3];
     targetHeader.insertAdjacentHTML('afterend','<th>Original actual min</th><th>Extension min</th>');
     document.getElementById('typical-audit').textContent=JSON.stringify(data.Summary.TypicalAudit,null,2);
     document.getElementById('minutes').insertAdjacentHTML('beforebegin','<p class="muted">Blue: adjusted typical-minute label. Grey dashed: original actual minutes. Orange: pre-game prediction. Uncertainty and residuals concern the adjusted label.</p>');
-    document.querySelectorAll('h2,h3,p,th').forEach(node=>{
-        if(!node.children.length)node.textContent=node.textContent.replace(/actual/gi,'target label');
-    });
 }
 let rows=[], summary={}, currentModel=0;
 const $=id=>document.getElementById(id), fmt=x=>x==null?'—':x.toFixed(2);
