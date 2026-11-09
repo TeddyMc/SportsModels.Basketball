@@ -26,6 +26,12 @@ Canonical source files are unchanged. Model observations preserve `ActualRegulat
 
 `Summary.Sources[].TypicalGames` retains per-game gate outcomes, sampled margins/thresholds and canonical/report hashes. `Summary.TypicalAudit` reports training/validation and role coverage, overlapping exclusions, extension counts and sizes. The comparison HTML includes this audit and plots adjusted labels with a dashed original-actual line. Predictive uncertainty refers to the next eligible typical-minute label, not an actual-game disturbance forecast. Historical eligibility and extensions are retrospective labels and never target-game forecast features. No participation, injury, blowout or foul correction model is fitted.
 
+### Consistent admission through fitting, scoring and plots
+
+The admitted typical-minute observations are the single numerical population for weighted histories, Bayesian state updates, training/validation errors and current report points. Excluded player-games remain in the participation ledger and exclusion audit; they supply no minute observation to model states, residuals, calibration curves or player timelines. This includes qualifying foul exits, starters without second-half minutes, noncompetitive games and unknown/incomplete observations. The original-actual overlay uses original minutes from those same admitted rows, so it does not reintroduce excluded games.
+
+The five-game role-continuity panel further subsets those eligible target rows. Its full-ledger lookback checks historical participation and starting-role metadata against actual team fixtures; it does not restore excluded historical minutes to the fitter or plotted outcomes. Matched/full-coverage controls only change prediction availability, never target admission or adjusted labels. Calendar variance can propagate across excluded dates without receiving an observation update.
+
 ### Rotation consumer handoff
 
 The typical Bayesian `results.json` pairs `Rows[i].Observation` identities/dates/known role with `Models[0].PredictionsMinutes[i]`. This is the pre-game expected typical-minute mean. `LatentVarianceMinutesSquared[i]` measures uncertainty about that mean; `PredictiveVarianceMinutesSquared[i]` adds observation noise for the next eligible adjusted label. Take square roots for standard deviations in minutes. `PosteriorMeansMinutes` and `PosteriorVariancesMinutesSquared` are after-observation states and must not be used as that game's pre-game forecast. `LatestHistoryDates` and `HistoryCounts` identify the earlier-date state evidence.
