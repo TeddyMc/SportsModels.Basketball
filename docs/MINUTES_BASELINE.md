@@ -146,3 +146,15 @@ C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe analysis/minutes/study.
 ```
 
 The study saves its configuration and completion statuses and generates a report containing the selected setups plus the benchmark. The persistent registry/report is refreshed too. Mean and total predictive LL are selectable alongside errors, with training/validation overall, starter and bench scores and observation counts. Higher LL is better. Log scores are in nats using minutes as the observation unit; same-date observations of one player/role receive their joint Gaussian predictive score. Full coverage includes prior-only predictions and agrees with the training likelihood objective; matched coverage makes comparison with the fixed point benchmark fair. Point-only models have blank LL unless an explicit predictive distribution is supplied—no arbitrary residual variance is assigned to the benchmark. Saved experiment predictions/parameters are not changed when additional derived LL metrics are computed.
+
+## Same-role continuity calibration subset
+
+Add the previous-five-team-games calibration panel directly below the original plot in an existing static review:
+
+```powershell
+C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe analysis/minutes/role_continuity.py --reference-results C:/Data/Basketball/analysis/minutes-five-plus-five-typical-v2-20261109/results.json --candidate-results C:/Data/Basketball/analysis/bayesian-drift-cap-typical-v2-20261109/results.json --review C:/Data/Basketball/analysis/typical-review-v2-20261109
+```
+
+This keeps the existing matched validation target and frozen predictions, then requires confirmed participation in every one of the current team's previous five regular-season games and the same starter/bench status as the target game. Team schedules come from the full participation ledger, so missed/absent roster rows and unknown roles are not skipped. Only strictly earlier dates count; histories can cross seasons. Prior appearances need not themselves pass the competitive/foul/typical-minute gates: this diagnoses actual role continuity, independently of model-history admission. Confirmed Played or positive original complete regulation minutes establish participation; unknown participation fails.
+
+Both models use the identical subset and original one-minute calibration bins/axes. No refitting or extra target adjustment occurs. `last-five-same-role.json` retains counts, per-model bins and errors, input hashes and the definition; `last-five-same-role-membership.csv` retains every forecast's selection flag and five preceding team-game IDs. Rerunning replaces the same marked HTML panel without duplicating it.
