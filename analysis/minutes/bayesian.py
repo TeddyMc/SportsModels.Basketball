@@ -215,11 +215,19 @@ def main():
     parser.add_argument("--reference-results", type=Path, required=True,
                         help="Explicit benchmark results define the target population and participation ledger")
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--version", default="bayes-drift-cap-played-v1")
-    parser.add_argument("--registry", type=Path, default=Path("C:/Data/Basketball/analysis/model-tracking-played-v1/registry.json"))
+    parser.add_argument("--version", help="Immutable version ID; defaults to the reference target's v1")
+    parser.add_argument("--registry", type=Path, help="Defaults to the reference target's separate registry")
     parser.add_argument("--dynamics", default="calendar_drift_fitted_cap")
     parser.add_argument("--name")
     args = parser.parse_args()
+    if args.registry is None or args.version is None:
+        reference_summary = json.loads(args.reference_results.read_bytes())["Summary"]
+    if args.version is None:
+        args.version = "bayes-drift-cap-typical-v1" if reference_summary.get("TypicalMinutes") else "bayes-drift-cap-played-v1"
+    if args.registry is None:
+        args.registry = Path("C:/Data/Basketball/analysis") / (
+            "model-tracking-typical-v1" if reference_summary.get("TypicalMinutes")
+            else "model-tracking-played-v1") / "registry.json"
     run_experiment(args.reference_results, args.output, args.version, args.dynamics, args.name, args.registry)
 
 

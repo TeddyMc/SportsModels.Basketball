@@ -393,10 +393,12 @@ def main():
     parser.add_argument("--population", choices=tuple(POPULATION_POLICIES), default="played",
                         help="played: minutes conditional on a positive regulation appearance; available: historical zero-inclusive population")
     parser.add_argument("--version", help="Immutable tracking ID; defaults to output directory name")
-    parser.add_argument("--registry", type=Path, default=Path("C:/Data/Basketball/analysis/model-tracking-played-v1/registry.json"))
+    parser.add_argument("--registry", type=Path, help="Defaults to a separate registry for the selected target")
     parser.add_argument("--benchmark", action="store_true", help="Designate this single model as the fixed benchmark")
     parser.add_argument("--typical", action="store_true", help="Use filtered, late-extended typical-minute labels")
     args = parser.parse_args()
+    args.registry = args.registry or Path("C:/Data/Basketball/analysis") / (
+        "model-tracking-typical-v1" if args.typical else "model-tracking-played-v1") / "registry.json"
     if args.render_only:
         payload = json.loads((args.output / "results.json").read_text(encoding="utf-8"))
         write_report(args.output, payload)
