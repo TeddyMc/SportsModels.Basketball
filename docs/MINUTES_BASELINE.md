@@ -1,8 +1,36 @@
 ﻿# Historical regulation-minute models
 
-Python fitting, evaluation and local HTML generation support [issue #20](https://github.com/TeddyMc/SportsModels.Basketball/issues/20). The issue owns modelling decisions and the wider factor exploration. This prototype does not complete that exploration.
+Python fitting, evaluation and local HTML generation support [issue #20](https://github.com/TeddyMc/SportsModels.Basketball/issues/20). The issue owns modelling decisions and acceptance. The current typical-minute workflow is ready for calibration review after a successful fit; later disturbance refinements are separately scoped.
 
-## Run
+## Expected typical minutes
+
+Use `--typical --population played` for the target in [#20](https://github.com/TeddyMc/SportsModels.Basketball/issues/20): expected regulation minutes under competitive, undisturbed deployment, conditional on playing and known starting role. This is an upstream rotation indicator. The old played-conditional actual-minute runs remain historical comparisons on different targets.
+
+```powershell
+$env:OPENBLAS_NUM_THREADS = '1'
+C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe analysis/minutes/train.py --typical --population played --loss mse --models five_plus_five --benchmark --version benchmark-typical-v1 --registry C:/Data/Basketball/analysis/model-tracking-typical-v1/registry.json --output C:/Data/Basketball/analysis/minutes-five-plus-five-typical-v1-20261109
+C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe analysis/minutes/bayesian.py --reference-results C:/Data/Basketball/analysis/minutes-five-plus-five-typical-v1-20261109/results.json --version bayes-drift-cap-typical-v1 --registry C:/Data/Basketball/analysis/model-tracking-typical-v1/registry.json --output C:/Data/Basketball/analysis/bayesian-drift-cap-typical-v1-20261109
+```
+
+Both fits use the same filtered and adjusted historical labels. The existing training/validation seasons, separate starter/bench states, earlier-date updates and Gaussian dynamics remain. Use a new output directory and version for a changed target or input selection. Always specify the separate typical registry; do not add this target to a historical played-minute registry.
+
+`typical.py` consumes canonical events and the matching report's `Validation.Checks` and primary `Stints`. The competitive gate reconstructs scores from canonical scoring events, requires passing cumulative score evidence through minute 44, and excludes missing, contradictory, unknown or nonchronological score evidence. It checks both 38:00 and 44:00 and every intervening before/after-event state. Scores carry between events: a constant margin must still satisfy the falling threshold at the end of each interval. Equality passes. The line is 27 points at 38 and 15 at 44. Later score changes do not affect this gate.
+
+Personal foul types follow the converter's personal-count classification; technical/bench charges do not increment personal counts. Q+1 triggers on reaching 2/3/4/5 cumulative fouls in Q1/Q2/Q3/Q4. A subsequent canonical substitution or ejection exit in event order before the quarter-end clock excludes the player's game; an earlier exit or a zero-clock exit alone does not. Missing or contradictory personal-count evidence remains an exclusion. This is a heuristic, not a causal diagnosis. Starters with no Q3/Q4 playing interval are excluded; bench players do not receive this proxy.
+
+Court intervals are merged before calculating durations. Minute-44 membership is after substitutions at that clock (intervals include the start and exclude the end). For players on court at 44, add only their off-court seconds between 44 and 48. Original complete regulation totals must match the established court-interval total within 0.01 seconds; otherwise membership/extension evidence is treated as incomplete. Regulation portions of overtime games remain; overtime intervals are ignored.
+
+Canonical source files are unchanged. Model observations preserve `ActualRegulationSeconds`, `TypicalRegulationSeconds`, `LateExtensionSeconds`, `OnCourtAt44`, `CourtIntervals`, `TypicalExclusions` and foul-exit event evidence. The existing model-facing `RegulationSeconds` field contains the adjusted target in this mode. All errors and likelihoods use that target. The full chronological participation ledger preserves every represented row and its admission status. Exclusion counts may overlap; primary admission counts are separate from all triggered typical-gate reasons.
+
+`Summary.Sources[].TypicalGames` retains per-game gate outcomes, sampled margins/thresholds and canonical/report hashes. `Summary.TypicalAudit` reports training/validation and role coverage, overlapping exclusions, extension counts and sizes. The comparison HTML includes this audit and plots adjusted labels with a dashed original-actual line. Predictive uncertainty refers to the next eligible typical-minute label, not an actual-game disturbance forecast. Historical eligibility and extensions are retrospective labels and never target-game forecast features. No participation, injury, blowout or foul correction model is fitted.
+
+### Rotation consumer handoff
+
+The typical Bayesian `results.json` pairs `Rows[i].Observation` identities/dates/known role with `Models[0].PredictionsMinutes[i]`. This is the pre-game expected typical-minute mean. `LatentVarianceMinutesSquared[i]` measures uncertainty about that mean; `PredictiveVarianceMinutesSquared[i]` adds observation noise for the next eligible adjusted label. Take square roots for standard deviations in minutes. `PosteriorMeansMinutes` and `PosteriorVariancesMinutesSquared` are after-observation states and must not be used as that game's pre-game forecast. `LatestHistoryDates` and `HistoryCounts` identify the earlier-date state evidence.
+
+The file contains eligible historical examples, not a live service or a complete-game participation forecast. Downstream rotation work must define its own prospective input and disturbance handling. Start from the frozen role parameters and dynamics in `setup.json`/`Models[0].Roles`, and use only earlier completed eligible labels. Do not supply the target game's eventual eligibility, adjustment, realised fouls or score path as inputs. #21/#10/#19 own their rotation/compatibility specifications.
+
+## Historical actual-minute runs
 
 Create an environment and install the pinned numerical dependencies (tested with Python 3.14). Generated data remains outside Git.
 

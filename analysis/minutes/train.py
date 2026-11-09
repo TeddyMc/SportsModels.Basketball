@@ -93,7 +93,7 @@ def digest(path):
     return sha256(path.read_bytes()).hexdigest()
 
 
-def load_observations(catalog_path, population="played"):
+def load_observations(catalog_path, population="played", typical=False):
     if population not in POPULATION_POLICIES:
         raise ValueError(f"Unknown minutes population: {population}")
     catalog_bytes = catalog_path.read_bytes()
@@ -135,10 +135,21 @@ def load_observations(catalog_path, population="played"):
 
         games = [g for g in read_csv(run / "games.csv") if g["game"].startswith("002")]
         counts = Counter()
+        target_games = []
         for game_index, entry in enumerate(games):
             game_id = entry["game"]
             path = run / "games" / f"{entry['input']}.json"
             game = json.loads(path.read_text(encoding="utf-8-sig"))
+            target_context = None
+            if typical:
+                from typical import prepare_game
+                report_path = run / "reports" / path.name
+                report = json.loads(report_path.read_text(encoding="utf-8-sig"))
+                target_context = prepare_game(game, report)
+                counts[f"TypicalGame:{target_context['GameExclusion'] or 'Eligible'}"] += 1
+                target_games.append({"GameId": game_id, "Exclusion": target_context['GameExclusion'],
+                    "ScoreEvidence": target_context['ScoreEvidence'], "GameSha256": digest(path),
+                    "Report": str(report_path), "ReportSha256": digest(report_path)})
             for side in ("HomeTeam", "AwayTeam"):
                 team = game[side]
                 for player in team["Players"]:
@@ -172,6 +183,10 @@ def load_observations(catalog_path, population="played"):
                         "Reasons": minute["reasons"] if minute else "Missing regulation observation",
                         "EvidenceKinds": minute["evidence_kinds"] if minute else "",
                     }
+                    if typical:
+                        from typical import apply_target
+                        row, target_exclusion = apply_target(row, target_context)
+                        exclusion = exclusion or target_exclusion
                     if exclusion is None:
                         observations.append(row)
                     else:
@@ -180,6 +195,7 @@ def load_observations(catalog_path, population="played"):
             if (game_index + 1) % 500 == 0:
                 print(f"{season}: read {game_index + 1}/{len(games)} regular-season games", flush=True)
         sources.append({"Season": season, "RunDirectory": str(run), "Games": len(games),
+                        **({"TypicalGames": target_games} if typical else {}),
                         "ManifestSha256": digest(manifest_path), "MinutesCsvSha256": digest(minutes_path),
                         "Counts": dict(counts)})
         print(f"{season}: {len(games)} games; {dict(counts)}", flush=True)
@@ -379,6 +395,7 @@ def main():
     parser.add_argument("--version", help="Immutable tracking ID; defaults to output directory name")
     parser.add_argument("--registry", type=Path, default=Path("C:/Data/Basketball/analysis/model-tracking-played-v1/registry.json"))
     parser.add_argument("--benchmark", action="store_true", help="Designate this single model as the fixed benchmark")
+    parser.add_argument("--typical", action="store_true", help="Use filtered, late-extended typical-minute labels")
     args = parser.parse_args()
     if args.render_only:
         payload = json.loads((args.output / "results.json").read_text(encoding="utf-8"))
@@ -386,7 +403,9 @@ def main():
         return
     if args.output.exists():
         raise FileExistsError("Use a new output directory for a new fit")
-    observations, audit, sources, catalog_bytes = load_observations(args.catalog, args.population)
+    if args.typical and args.population != "played":
+        parser.error("Typical minutes requires the positive-playing population")
+    observations, audit, sources, catalog_bytes = load_observations(args.catalog, args.population, args.typical)
     rows, history = build_history(observations)
     models = train_models(rows, history, model_keys=args.models, loss=args.loss)
     if args.version and len(models) == 1:
@@ -403,6 +422,9 @@ def main():
                "NumericWeightFloor": NUMERICAL_FLOOR,
                "Policy": "Regular-season confirmed-active observations excluding explicit canonical injury, rest, personal, suspension, protocol, reconditioning, trade, ineligible and not-with-team absences from targets and histories. Coach-decision and unexplained available-unused zeros retained. Same-role earlier-date history only; history crosses seasons. Parameters fitted separately per role on 2021–25 only, frozen throughout 2025–26. Earlier observed validation outcomes may enter later validation histories. Short histories use available components renormalized; partial tail blocks average their available observations. Comparison warnings and plausible uncorroborated numeric totals retained; genuinely unknown totals remain null. Archived active/starter status supplied as a retrospective pre-game scenario; publication timing is not established. Multistart convergence is reported, not a certificate of global optimality."}
     payload = {"Rows": rows, "Models": models, "Summary": summary}
+    if args.typical:
+        from typical import summarize
+        summary.update(summarize(observations, audit, sources))
     args.output.mkdir(parents=True)
     summary["ParticipationLedger"] = write_participation_ledger(args.output, observations, audit)
     if args.population == "played":

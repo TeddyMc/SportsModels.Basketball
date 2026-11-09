@@ -8,6 +8,7 @@ body{font:15px system-ui;margin:24px auto;max-width:1250px;padding:0 20px;backgr
 <p class="muted">Train: 2021–22 through 2024–25 · Validation: 2025–26 · Starting role is given; fitted weights and histories are separate for starters and bench</p>
 <p id="objective-description"></p>
 <p id="participation-description" class="muted"></p>
+<details id="typical-audit-panel" hidden><summary>Typical-minute target coverage and adjustments</summary><pre id="typical-audit"></pre></details>
 <details id="study-status-panel" hidden><summary>Study completion status</summary><pre id="study-status"></pre></details>
 <label id="version-metric-label" for="version-metric" hidden>Version-table error metric</label>
 <select id="version-metric" hidden><option value="RmseMinutes">RMSE (minutes)</option><option value="MseMinutesSquared">MSE (minutes²)</option><option value="MaeMinutes">MAE (minutes)</option><option value="MeanLogLikelihood">Mean predictive LL (nats/game; higher is better)</option><option value="LogLikelihoodSum">Total predictive LL (nats; higher is better)</option></select>
@@ -45,6 +46,19 @@ const squaredError = data.Summary.Loss === 'mse';
 const probabilistic = data.Models.some(model=>model.PredictiveVarianceMinutesSquared);
 if(data.Summary.ConditionalOnPlaying){
     document.getElementById('participation-description').textContent='Target: regulation minutes conditional on playing positive regulation minutes. Zero-minute games do not enter fitting, scoring or player updates. Non-appearances, inactive/active statuses and absence reasons are retained in '+data.Summary.ParticipationLedger.Path+'. Participation probability and return-from-absence adjustments are not fitted here.';
+}
+if(data.Summary.TypicalMinutes){
+    document.title='Expected typical minutes - competitive, undisturbed deployment';
+    document.querySelector('h1').textContent=document.title;
+    document.getElementById('participation-description').textContent=data.Summary.TargetDescription;
+    document.getElementById('typical-audit-panel').hidden=false;
+    const targetHeader=document.getElementById('games').closest('table').querySelector('thead tr').children[3];
+    targetHeader.insertAdjacentHTML('afterend','<th>Original actual min</th><th>Extension min</th>');
+    document.getElementById('typical-audit').textContent=JSON.stringify(data.Summary.TypicalAudit,null,2);
+    document.getElementById('minutes').insertAdjacentHTML('beforebegin','<p class="muted">Blue: adjusted typical-minute label. Grey dashed: original actual minutes. Orange: pre-game prediction. Uncertainty and residuals concern the adjusted label.</p>');
+    document.querySelectorAll('h2,h3,p,th').forEach(node=>{
+        if(!node.children.length)node.textContent=node.textContent.replace(/actual/gi,'target label');
+    });
 }
 let rows=[], summary={}, currentModel=0;
 const $=id=>document.getElementById(id), fmt=x=>x==null?'—':x.toFixed(2);
@@ -90,18 +104,18 @@ function plot(id, rs, residual, uncertainty=false) {
             'text-anchor':index === rs.length-1 ? 'end' : 'start'}, season(row)));
     });
 
-    const series = uncertainty ? [['LatentSdSeconds','#176c98'],['PredictiveSdSeconds','#c25327']] : residual ? [['ResidualSeconds', '#7358a5']] : [['actual', '#176c98'], ['PredictedSeconds', '#c25327']];
+    const series = uncertainty ? [['LatentSdSeconds','#176c98'],['PredictiveSdSeconds','#c25327']] : residual ? [['ResidualSeconds', '#7358a5']] : [['actual', '#176c98'], ...(data.Summary.TypicalMinutes ? [['OriginalActualSeconds','#8c969e']] : []), ['PredictedSeconds', '#c25327']];
     if(comparingBenchmark() && !uncertainty)series.push([residual?'BenchmarkResidualSeconds':'BenchmarkPredictedSeconds','#687b8c']);
     for (const [field, color] of series) {
         let previous = null;
         rs.forEach((row, index) => {
-            const raw = field === 'actual' ? row.Observation.RegulationSeconds : row[field];
+            const raw = field === 'actual' ? row.Observation.RegulationSeconds : field === 'OriginalActualSeconds' ? row.Observation.ActualRegulationSeconds : row[field];
             if (raw == null) { previous = null; return; }
             const point = {x:x(index), y:y(raw/60)};
             if (previous) {
                 const segment=el('line', {x1:previous.x, y1:previous.y, x2:point.x, y2:point.y, stroke:color, 'stroke-width':1.4, 'data-series':field});
-                if(field.startsWith('Benchmark'))segment.setAttribute('stroke-dasharray','5 4');
-                segment.append(el('title', {}, `${row.Observation.Date} · ${row.Observation.GameId} · ${field}: ${fmt(raw/60)} min · role ${row.Observation.Started} · history ${row.HistoryCount}`));
+                if(field.startsWith('Benchmark') || field === 'OriginalActualSeconds')segment.setAttribute('stroke-dasharray','5 4');
+                segment.append(el('title', {}, `${row.Observation.Date} · ${row.Observation.GameId} · ${field}: ${fmt(raw/60)} min; original ${fmt(row.Observation.ActualRegulationSeconds == null ? null : row.Observation.ActualRegulationSeconds/60)}; extension ${fmt(row.Observation.LateExtensionSeconds == null ? null : row.Observation.LateExtensionSeconds/60)} · role ${row.Observation.Started} · history ${row.HistoryCount}`));
                 svg.append(segment);
             }
             previous = point;
@@ -146,7 +160,7 @@ function populationPlot(id, countId, started, color) {
     if (evaluated.length === 0) svg.append(el('text', {x:(left+right)/2, y:(top+bottom)/2, 'text-anchor':'middle', fill:'#516377'}, 'No evaluated player-games'));
 }
 
-function render(){let key=choices.get($('player').value);if(!key){$('empty').textContent='Choose a complete player entry from the suggestions.';return}let rs=groups.get(key);$('empty').textContent='';$('selected').textContent=rs.at(-1).Observation.Name;cards('individual',metrics(rs));plot('minutes',rs,false);plot('residuals',rs,true);$('uncertainty-panel').hidden=!rs.some(r=>r.PredictiveSdSeconds!=null);if(!$('uncertainty-panel').hidden)plot('uncertainty',rs,false,true);$('games').replaceChildren();for(let r of rs){let o=r.Observation,tr=document.createElement('tr');let vals=[o.Date,o.GameId,o.Started==null?'Unknown':o.Started?'Starter':'Bench',fmt(o.RegulationSeconds==null?null:o.RegulationSeconds/60),fmt(r.PredictedSeconds==null?null:r.PredictedSeconds/60),fmt(r.ResidualSeconds==null?null:r.ResidualSeconds/60),null,r.Status,o.Quality];for(let v of vals){let td=document.createElement('td');if(v===null){let d=document.createElement('details'),s=document.createElement('summary');s.textContent=`${r.HistoryCount} / ${r.LatestHistoryDate??'—'}`;d.append(s,document.createTextNode(r.HistoryGameIds.join(', ')));td.append(d)}else td.textContent=v;tr.append(td)}$('games').append(tr)}}
+function render(){let key=choices.get($('player').value);if(!key){$('empty').textContent='Choose a complete player entry from the suggestions.';return}let rs=groups.get(key);$('empty').textContent='';$('selected').textContent=rs.at(-1).Observation.Name;cards('individual',metrics(rs));plot('minutes',rs,false);plot('residuals',rs,true);$('uncertainty-panel').hidden=!rs.some(r=>r.PredictiveSdSeconds!=null);if(!$('uncertainty-panel').hidden)plot('uncertainty',rs,false,true);$('games').replaceChildren();for(let r of rs){let o=r.Observation,tr=document.createElement('tr');let vals=[o.Date,o.GameId,o.Started==null?'Unknown':o.Started?'Starter':'Bench',fmt(o.RegulationSeconds==null?null:o.RegulationSeconds/60),fmt(r.PredictedSeconds==null?null:r.PredictedSeconds/60),fmt(r.ResidualSeconds==null?null:r.ResidualSeconds/60),null,r.Status,o.Quality];if(data.Summary.TypicalMinutes)vals.splice(4,0,fmt(o.ActualRegulationSeconds==null?null:o.ActualRegulationSeconds/60),fmt(o.LateExtensionSeconds/60));for(let v of vals){let td=document.createElement('td');if(v===null){let d=document.createElement('details'),s=document.createElement('summary');s.textContent=`${r.HistoryCount} / ${r.LatestHistoryDate??'—'}`;d.append(s,document.createTextNode(r.HistoryGameIds.join(', ')));td.append(d)}else td.textContent=v;tr.append(td)}$('games').append(tr)}}
 $('player').addEventListener('change',render);
 function activateModel(index) {
     const priorPlayer = choices.get($('player').value);
