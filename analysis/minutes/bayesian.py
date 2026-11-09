@@ -223,10 +223,10 @@ def main():
     if args.registry is None or args.version is None:
         reference_summary = json.loads(args.reference_results.read_bytes())["Summary"]
     if args.version is None:
-        args.version = "bayes-drift-cap-typical-v1" if reference_summary.get("TypicalMinutes") else "bayes-drift-cap-played-v1"
+        args.version = "bayes-drift-cap-typical-v2" if reference_summary.get("TypicalMinutes") else "bayes-drift-cap-played-v1"
     if args.registry is None:
         args.registry = Path("C:/Data/Basketball/analysis") / (
-            "model-tracking-typical-v1" if reference_summary.get("TypicalMinutes")
+            "model-tracking-typical-v2" if reference_summary.get("TypicalMinutes")
             else "model-tracking-played-v1") / "registry.json"
     run_experiment(args.reference_results, args.output, args.version, args.dynamics, args.name, args.registry)
 

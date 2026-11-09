@@ -1,12 +1,14 @@
-﻿"""Retrospective typical-minute labels from canonical events and matching diagnostics.
+"""Retrospective typical-minute labels from canonical events and matching diagnostics.
 
 No provider rows are parsed. All gates are label selection, never forecast features.
 """
 from collections import Counter, defaultdict
 from hashlib import sha256
 from pathlib import Path
+import json
+import re
 
-POLICY = 'competitive-undisturbed-late-extension-v1'
+POLICY = 'competitive-undisturbed-observed-score-v2'
 PERIODS = {'FirstQuarter': 1, 'SecondQuarter': 2, 'ThirdQuarter': 3, 'FourthQuarter': 4}
 PERSONAL = {'Personal', 'Shooting', 'Offensive', 'OffensiveCharge', 'LooseBall',
             'FlagrantOne', 'FlagrantTwo', 'ClearPath', 'AwayFromPlay',
@@ -22,49 +24,77 @@ def clock(event):
 
 
 def competitive_gate(game, checks):
-    """Check piecewise-constant margins against decreasing threshold at segment ends."""
+    """Use recorded PBP score observations; replay status is not score missingness."""
     events = game['Events']
-    if not events or not any(clock(e)[2] is not None and clock(e)[2] >= 2640 for e in events):
+    by_id = {e['EventId']: i for i, e in enumerate(events)}
+    observations = {}
+    for c in checks:
+        if c['Code'] != 'SCORE.OBSERVATION':
+            continue
+        index = by_id.get(c.get('EventId'))
+        if index is None:
+            continue
+        t = clock(events[index])[2]
+        if t is None or t > 2640:
+            continue
+        if c['Status'] == 'Fail':
+            return 'Contradictory score evidence', []
+        # This is the converter's diagnostic contract, not a raw-provider parser.
+        match = re.match(r'After-row observation home=(\d+), away=(\d+); effective stream ', c['Evidence'])
+        if not match:
+            continue
+        value = tuple(map(int, match.groups()))
+        if index in observations and observations[index] != value:
+            return 'Contradictory score evidence', []
+        observations[index] = value
+    anchors = [i for i in observations if clock(events[i])[2] < 2280]
+    if not anchors or not any(clock(e)[2] is not None and clock(e)[2] >= 2640 for e in events):
         return 'Missing score evidence', []
-    event_times = {e['EventId']: clock(e)[2] for e in events}
-    score_checks = [c for c in checks if c['Code'] == 'SCORE.OBSERVATION'
-                    and (c.get('EventId') not in event_times or
-                         (event_times[c['EventId']] is not None and event_times[c['EventId']] <= 2640))]
-    if not score_checks or any(c['Status'] != 'Pass' for c in score_checks):
-        return 'Missing or contradictory score evidence', []
-    scores = {game['HomeTeam']['TeamId']: 0, game['AwayTeam']['TeamId']: 0}
-    prior_time, evidence, breached = 0, [], False
+    anchor = max(anchors)
+    home, away = observations[anchor]
+    evidence, breached = [], False
+    previous_time = clock(events[anchor])[2]
 
     def sample(t):
         nonlocal breached
         if 2280 <= t <= 2640:
-            margin = abs(scores[game['HomeTeam']['TeamId']] - scores[game['AwayTeam']['TeamId']])
-            limit = 27 - 2 * (t / 60 - 38)
+            margin = abs(home-away)
+            limit = 27 - 2 * (t/60 - 38)
             evidence.append({'ElapsedSeconds': t, 'Margin': margin, 'Threshold': limit})
             breached |= margin > limit + 1e-9
 
-    for e in events:
+    for i in range(anchor+1, len(events)):
+        e = events[i]
         q, _, t = clock(e)
         if q is None:
             continue
-        if t < prior_time:
+        if t < previous_time:
             return 'Nonchronological score evidence', evidence
-        if prior_time < 2280 <= t:
+        if previous_time < 2280 <= t:
             sample(2280)
-        sample(min(t, 2640))
+        sample(min(t,2640))
         if t > 2640:
             break
-        kind = e['$event']
-        if kind in ('FieldGoalEvent', 'FreeThrowEvent'):
-            if e['Outcome'] not in ('Made', 'Missed'):
-                return 'Unknown scoring event', evidence
+        if i in observations:
+            next_home, next_away = observations[i]
+            if next_home < home or next_away < away:
+                return 'Contradictory score evidence', evidence
+            home, away = next_home, next_away
+        elif e['$event'] in ('FieldGoalEvent','FreeThrowEvent'):
+            if e['Outcome'] not in ('Made','Missed'):
+                return 'Missing score evidence', evidence
             if e['Outcome'] == 'Made':
-                points = 1 if kind == 'FreeThrowEvent' else {'TwoPointer': 2, 'ThreePointer': 3}.get(e['FieldGoalType'])
-                if points is None or e['TeamId'] not in scores:
-                    return 'Unknown scoring event', evidence
-                scores[e['TeamId']] += points
+                points = 1 if e['$event']=='FreeThrowEvent' else {'TwoPointer':2,'ThreePointer':3}.get(e['FieldGoalType'])
+                if points is None:
+                    return 'Missing score evidence', evidence
+                if e['TeamId']==game['HomeTeam']['TeamId']:
+                    home += points
+                elif e['TeamId']==game['AwayTeam']['TeamId']:
+                    away += points
+                else:
+                    return 'Missing score evidence', evidence
         sample(t)
-        prior_time = t
+        previous_time = t
     return ('Noncompetitive game' if breached else None), evidence
 
 
@@ -104,7 +134,11 @@ def prepare_game(game, report):
             continue
         if e['$event'] == 'FoulEvent':
             if e['FoulType'] in ('Other', 'NotSet'):
-                unknown.update(p['PlayerId'] for p in e['CommittingParticipants'] if p.get('PlayerId') is not None)
+                actors = e['CommittingParticipants']
+                if not actors or any(p.get('PlayerId') is None for p in actors):
+                    unknown.update(p['PlayerId'] for side in ('HomeTeam','AwayTeam') for p in game[side]['Players'])
+                else:
+                    unknown.update(p['PlayerId'] for p in actors)
             if e['FoulType'] in PERSONAL:
                 for actor in e['CommittingParticipants']:
                     player = actor.get('PlayerId')
@@ -179,3 +213,71 @@ def summarize(observations, audit, sources):
             'Policy':'Typical-minute labels: positive playing appearances in competitive games, excluding foul-threshold exits and starters without second-half minutes. Minute-44 players receive only subsequent off-court seconds through 48. Separate same-role earlier-date histories and states; training-only fitted parameters frozen in validation. Actuals, every represented roster row, exclusion reasons and adjustment evidence are preserved. These retrospective labels are never forecast-time inputs.',
             'TargetImplementationSha256':sha256(Path(__file__).read_bytes()).hexdigest(),
             'TargetDescription':'Expected typical regulation minutes conditional on playing, known role and competitive undisturbed deployment. Scores use filtered, minute-44-extended labels; actuals remain separate. Historical selection and adjustments are retrospective labels, never target-game features.'}
+
+def load_cached_observations(reference_results):
+    """Rebuild gates using hashed saved court intervals; reread current score/foul evidence.
+
+    The cache is explicit, provenance-checked and does not reuse predictions or fits.
+    """
+    from train import digest, population_exclusion
+    reference_results = Path(reference_results)
+    reference_bytes = reference_results.read_bytes()
+    reference = json.loads(reference_bytes)
+    if not reference['Summary'].get('TypicalMinutes'):
+        raise ValueError('A typical-minute construction cache is required')
+    ledger_info = reference['Summary']['ParticipationLedger']
+    ledger_path = Path(ledger_info['Path'])
+    if digest(ledger_path) != ledger_info['Sha256']:
+        raise ValueError('Changed participation ledger')
+    ledger = json.loads(ledger_path.read_bytes())
+    by_game = defaultdict(list)
+    for row in ledger:
+        by_game[row['GameId']].append(row)
+    decoder = json.JSONDecoder()
+    pattern = re.compile(r'\{\s*"Code"\s*:\s*"(?:SCORE\.OBSERVATION|FOUL\.PERSONAL_OBSERVATION)"')
+    observations, audit, sources = [], [], []
+    for old_source in reference['Summary']['Sources']:
+        source = {k:v for k,v in old_source.items() if k not in ('Counts','TypicalGames')}
+        counts, games = Counter(), []
+        for j, old_game in enumerate(old_source['TypicalGames']):
+            game_id = old_game['GameId']
+            records = by_game[game_id]
+            path = Path(records[0]['Source'])
+            if digest(path) != old_game['GameSha256']:
+                raise ValueError(f'Changed canonical game: {path}')
+            game = json.loads(path.read_bytes())
+            report_path = Path(old_game['Report'])
+            report_bytes = report_path.read_bytes()
+            if sha256(report_bytes).hexdigest() != old_game['ReportSha256']:
+                raise ValueError(f'Changed diagnostic report: {report_path}')
+            text = report_bytes.decode('utf-8-sig')
+            checks = [decoder.raw_decode(text,m.start())[0] for m in pattern.finditer(text)]
+            context = prepare_game(game, {'Validation':{'Checks':checks,'Stints':[]}})
+            context['Stints'] = {r['PlayerId']:r['CourtIntervals'] for r in records}
+            counts[f"TypicalGame:{context['GameExclusion'] or 'Eligible'}"] += 1
+            games.append({**old_game,'Exclusion':context['GameExclusion'],'ScoreEvidence':context['ScoreEvidence']})
+            for old in records:
+                row = {k:v for k,v in old.items() if k not in ('IncludedInMinutesPopulation','Exclusion')}
+                row['RegulationSeconds'] = row['ActualRegulationSeconds']
+                row, target_exclusion = apply_target(row, context)
+                exclusion = population_exclusion(row,row['ActualRegulationSeconds'],'played') or target_exclusion
+                counts['RepresentedRows'] += 1
+                counts[f"Eligibility:{row['Eligibility']}"] += 1
+                counts[f"Availability:{row['Quality']}"] += 1
+                if exclusion:
+                    audit.append({**row,'Exclusion':exclusion})
+                    counts[f'Excluded:{exclusion}'] += 1
+                else:
+                    observations.append(row)
+            if (j+1)%250==0:
+                print(f"{source['Season']}: refreshed {j+1}/{len(old_source['TypicalGames'])} hashed games",flush=True)
+        source.update(Counts=dict(counts),TypicalGames=games,
+                      CourtIntervalCache={'Results':str(reference_results.resolve()),
+                                          'ResultsSha256':sha256(reference_bytes).hexdigest(),
+                                          'LedgerSha256':ledger_info['Sha256']})
+        sources.append(source)
+        print(source['Season'],dict(counts),flush=True)
+    catalog_bytes = (reference_results.parent/'catalog.json').read_bytes()
+    if sha256(catalog_bytes).hexdigest()!=reference['Summary']['CatalogSha256']:
+        raise ValueError('Changed cached catalog')
+    return observations,audit,sources,catalog_bytes

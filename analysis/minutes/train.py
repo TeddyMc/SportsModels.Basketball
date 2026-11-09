@@ -403,9 +403,10 @@ def main():
     parser.add_argument("--registry", type=Path, help="Defaults to a separate registry for the selected target")
     parser.add_argument("--benchmark", action="store_true", help="Designate this single model as the fixed benchmark")
     parser.add_argument("--typical", action="store_true", help="Use filtered, late-extended typical-minute labels")
+    parser.add_argument("--typical-cache", type=Path, help="Explicit prior typical results with hashed saved court intervals; score/foul evidence is reread")
     args = parser.parse_args()
     args.registry = args.registry or Path("C:/Data/Basketball/analysis") / (
-        "model-tracking-typical-v1" if args.typical else "model-tracking-played-v1") / "registry.json"
+        "model-tracking-typical-v2" if args.typical else "model-tracking-played-v1") / "registry.json"
     if args.render_only:
         payload = json.loads((args.output / "results.json").read_text(encoding="utf-8"))
         write_report(args.output, payload)
@@ -414,7 +415,13 @@ def main():
         raise FileExistsError("Use a new output directory for a new fit")
     if args.typical and args.population != "played":
         parser.error("Typical minutes requires the positive-playing population")
-    observations, audit, sources, catalog_bytes = load_observations(args.catalog, args.population, args.typical)
+    if args.typical_cache:
+        if not args.typical:
+            parser.error("--typical-cache requires --typical")
+        from typical import load_cached_observations
+        observations, audit, sources, catalog_bytes = load_cached_observations(args.typical_cache)
+    else:
+        observations, audit, sources, catalog_bytes = load_observations(args.catalog, args.population, args.typical)
     rows, history = build_history(observations)
     models = train_models(rows, history, model_keys=args.models, loss=args.loss)
     if args.version and len(models) == 1:

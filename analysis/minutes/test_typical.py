@@ -1,4 +1,4 @@
-﻿import unittest
+import unittest
 from typical import competitive_gate, apply_target, prepare_game
 
 
@@ -15,26 +15,59 @@ def game(events):
 CHECK = {'Code':'SCORE.OBSERVATION','Status':'Pass'}
 
 
+def score_checks(g, status='Pass'):
+    home=away=0
+    checks=[]
+    for i,e in enumerate(g['Events']):
+        e['EventId']=i+100
+        if e['$event'] in ('FieldGoalEvent','FreeThrowEvent') and e['Outcome']=='Made':
+            points=1 if e['$event']=='FreeThrowEvent' else {'TwoPointer':2,'ThreePointer':3}[e['FieldGoalType']]
+            if e['TeamId']==1:home+=points
+            else:away+=points
+        checks.append({'Code':'SCORE.OBSERVATION','Status':status,'EventId':e['EventId'],
+                       'Evidence':f'After-row observation home={home}, away={away}; effective stream home={home}, away={away}.'})
+    return checks
+
+
 class TypicalTests(unittest.TestCase):
     def test_threshold_equality_and_before_after_sampling(self):
         shots = [event('FieldGoalEvent',1,700-i,Outcome='Made',FieldGoalType='ThreePointer',TeamId=1) for i in range(5)]
         g = game(shots+[event('PeriodBoundaryEvent',remaining=600),event('PeriodBoundaryEvent')])
-        self.assertIsNone(competitive_gate(g,[CHECK])[0])  # 15 at 44 is allowed.
+        self.assertIsNone(competitive_gate(g,score_checks(g))[0])  # 15 at 44 is allowed.
         g['Events'].insert(-1,event('FreeThrowEvent',remaining=241,Outcome='Made',TeamId=1))
-        self.assertEqual(competitive_gate(g,[CHECK])[0],'Noncompetitive game')
+        self.assertEqual(competitive_gate(g,score_checks(g))[0],'Noncompetitive game')
 
     def test_missing_score_evidence(self):
         self.assertIn('score evidence',competitive_gate(game([]),[])[0])
         self.assertIn('score evidence',competitive_gate(game([event('PeriodBoundaryEvent')]),[])[0])
 
     def test_later_score_uncertainty_does_not_change_gate(self):
-        g=game([event('PeriodBoundaryEvent',EventId=1),event('PeriodBoundaryEvent',remaining=120,EventId=2)])
-        checks=[{**CHECK,'EventId':1},{**CHECK,'EventId':2,'Status':'NotAssessable'}]
+        g=game([event('PeriodBoundaryEvent',1,720),event('PeriodBoundaryEvent'),event('PeriodBoundaryEvent',remaining=120)])
+        checks=score_checks(g)
+        checks[-1]['Status']='Fail'
         self.assertIsNone(competitive_gate(g,checks)[0])
+
+    def test_observed_scores_survive_unknown_earlier_heave(self):
+        g=game([event('PeriodBoundaryEvent',1,720),
+                event('FieldGoalEvent',2,0,Outcome='NotSet',FieldGoalType='NotSet',TeamId=1),
+                event('PeriodBoundaryEvent',4,600),event('PeriodBoundaryEvent')])
+        checks=score_checks(g,status='NotAssessable')
+        self.assertIsNone(competitive_gate(g,checks)[0])
+        checks[-1]['Status']='Fail'
+        self.assertEqual(competitive_gate(g,checks)[0],'Contradictory score evidence')
+
+    def test_missing_observation_at_unknown_scoring_event_is_not_guessed(self):
+        g=game([event('PeriodBoundaryEvent',1,720),
+                event('FieldGoalEvent',4,500,Outcome='NotSet',FieldGoalType='NotSet',TeamId=1),
+                event('PeriodBoundaryEvent')])
+        checks=score_checks(g)
+        checks.pop(1)
+        self.assertEqual(competitive_gate(g,checks)[0],'Missing score evidence')
 
     def test_margin_carried_to_end_of_interval(self):
         shots = [event('FieldGoalEvent',1,700-i,Outcome='Made',FieldGoalType='ThreePointer',TeamId=1) for i in range(6)]
-        reason,_ = competitive_gate(game(shots+[event('PeriodBoundaryEvent',remaining=600),event('PeriodBoundaryEvent',remaining=200)]),[CHECK])
+        g=game(shots+[event('PeriodBoundaryEvent',remaining=600),event('PeriodBoundaryEvent',remaining=200)])
+        reason,_ = competitive_gate(g,score_checks(g))
         self.assertEqual(reason,'Noncompetitive game')
 
     def test_extension_credits_only_off_court_time(self):
@@ -101,6 +134,12 @@ class TypicalTests(unittest.TestCase):
         context={'GameExclusion':None,'Stints':{1:[(2400,2700)]},'UnknownFouls':{1},'FoulExits':{}}
         self.assertEqual(apply_target({'PlayerId':1,'Started':False,'RegulationSeconds':300},context)[1],
                          'Unknown foul evidence')
+
+    def test_unknown_foul_without_identified_actor_does_not_silently_pass(self):
+        events=[event('FoulEvent',1,600,FoulType='Other',CommittingParticipants=[]),
+                event('PeriodBoundaryEvent')]
+        result=prepare_game(game(events),{'Validation':{'Checks':[],'Stints':[]}})
+        self.assertIn(1,result['UnknownFouls'])
 
     def test_adjusted_labels_drive_history_and_scoring(self):
         import numpy as np
