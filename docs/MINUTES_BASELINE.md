@@ -164,3 +164,13 @@ C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe analysis/minutes/role_c
 This keeps the existing matched validation target and frozen predictions, then requires confirmed participation in every one of the current team's previous five regular-season games and the same starter/bench status as the target game. Team schedules come from the full participation ledger, so missed/absent roster rows and unknown roles are not skipped. Only strictly earlier dates count; histories can cross seasons. Prior appearances need not themselves pass the competitive/foul/typical-minute gates: this diagnoses actual role continuity, independently of model-history admission. Confirmed Played or positive original complete regulation minutes establish participation; unknown participation fails.
 
 Both models use the identical subset and original one-minute calibration bins/axes. No refitting or extra target adjustment occurs. `last-five-same-role.json` retains counts, per-model bins and errors, input hashes and the definition; `last-five-same-role-membership.csv` retains every forecast's selection flag and five preceding team-game IDs. Rerunning replaces the same marked HTML panel without duplicating it.
+
+## Fixed expected-minute bucket PDFs
+
+`prediction_buckets.py` creates a standalone HTML with empirical PDFs of adjusted typical-minute labels for strict Bayesian forecast buckets **greater than 35** and **less than 26** minutes. Starter and bench player-games are pooled before normalisation. Two-minute histogram densities each integrate to one; no kernel smoothing or fitting is applied. All existing target exclusions remain in force.
+
+```powershell
+C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe analysis/minutes/prediction_buckets.py --results C:/Data/Basketball/analysis/bayesian-drift-cap-typical-v2-20261109/results.json --continuity-csv C:/Data/Basketball/analysis/typical-review-v2-20261109/last-five-same-role-membership.csv --output C:/Data/Basketball/analysis/prediction-bucket-pdfs-typical-v2-20261110
+```
+
+The default is full Bayesian validation coverage, including prior-only predictions. Controls select training/validation/combined data and full, benchmark-matched or matched five-game role-continuity populations. Training-containing views are labelled as including fitted training data. Both panels share axes within a view. `summary.json` retains every view's bin counts, density integrals, role composition, location statistics and source hashes. `samples.csv` retains player-game identities, predictions, original and adjusted minutes, split and diagnostic membership. PDF here means probability density function; the requested output is HTML.
