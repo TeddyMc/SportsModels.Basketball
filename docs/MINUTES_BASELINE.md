@@ -174,3 +174,17 @@ C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe analysis/minutes/predic
 ```
 
 The default is full Bayesian validation coverage, including prior-only predictions. Controls select training/validation/combined data and full, benchmark-matched or matched five-game role-continuity populations. Training-containing views are labelled as including fitted training data. Both panels share axes within a view. `summary.json` retains every view's bin counts, density integrals, role composition, location statistics and source hashes. `samples.csv` retains player-game identities, predictions, original and adjusted minutes, split and diagnostic membership. PDF here means probability density function; the requested output is HTML.
+
+## Calibration hover points and confidence intervals
+
+Add or refresh hoverable data points and vertical confidence bars in both original and previous-five-same-role calibration panels of the existing review:
+
+```powershell
+C:/Data/Basketball/tools/minutes-venv/Scripts/python.exe analysis/minutes/calibration_review.py --reference-results C:/Data/Basketball/analysis/minutes-five-plus-five-typical-v2-20261109/results.json --candidate-results C:/Data/Basketball/analysis/bayesian-drift-cap-typical-v2-20261109/results.json --review C:/Data/Basketball/analysis/typical-review-v2-20261109
+```
+
+Each point retains its original one-minute prediction bin and game-weighted coordinates: x is mean prediction, y is mean adjusted label, n is player-games. Hover the point or its bar for these values, distinct player count and CI bounds. Series toggles let overlapping benchmark/Bayesian points be inspected separately.
+
+Bars are **95% pointwise player-cluster bootstrap percentile confidence intervals for mean y**, using 2,000 resamples and a fixed seed. Players are sampled within a bucket with replacement, retaining each sampled player's summed adjusted minutes and game count. Thus repeated games are not treated as independent draws. Predictions, bin membership and fitted parameters remain fixed: these intervals do not include fitting uncertainty and are not individual-game prediction intervals. With only one represented player, the point remains visible and the tooltip states the CI is not estimable; few-player intervals require caution. `calibration-ci.json` retains all coordinates, counts, intervals, method and source hashes. The existing model results and training filters are unchanged; the previous-five condition remains a diagnostic subset only.
+
+Run this command after regenerating the base/continuity review panels. The local full-review renderer also calls it last. Calibration acceptance and the next effect's specification are tracked in #20, not inferred from the diagnostic subset.
