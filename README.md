@@ -36,6 +36,8 @@ HTTP/transport errors, 30-second request timeouts, invalid JSON and storage fail
 
 ## Structure
 
+For interactive local 2025–26 player/game rotation heatmaps, see [the rotation viewer guide](docs/ROTATIONS.md).
+
 - `SportsModels.Data.NbaOfficial`: raw/reference acquisition and source-specific conversion with Contracts, Application, Interfaces, Infrastructure and Autofac folders. Application depends on I/O interfaces; Autofac connects HTTP, filesystem and shared identities through constructor injection. Reusable unified-event validation lives in `SportsModels.Data.Basketball`.
 - `SportsModels.Data.NbaOfficial.Host`: runnable command and summary/exit codes.
 - `SportsModels.Data.NbaOfficial.Tests.Unit`: deterministic acquisition, conversion, registry and validator tests using HTTP stubs, small saved fixtures and isolated temporary directories; no Internet required.

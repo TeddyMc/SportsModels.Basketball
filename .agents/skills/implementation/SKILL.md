@@ -13,6 +13,16 @@ description: Execute an approved SportsModels.Basketball GitHub task in a focuse
 7. Commit, push the task branch and open a **pull request** referencing the issue (e.g. `Closes #2`), following the PR creation guidance below. Do not merge without user approval.
 8. Report a concise summary: PR URL, changed components, acceptance-criteria evidence, commands/results, sample execution, failure counts where applicable, limitations and follow-ups. Update durable docs with important discoveries.
 
+## Wrapping up
+
+Treat “wrap up”, “finish up” or “that's good for now” as a request to close out the agreed implementation, including accepted review refinements:
+
+- Finish relevant checks and the sequential review; fix outstanding defects or explicitly report blockers. Do not repeat unchanged checks without a reason.
+- Bring the issue's scope/decisions, topic-based usage docs and PR description/evidence up to date with the final behaviour. Keep task evidence in the PR, not a new repository handoff file.
+- Commit and push all agreed changes; verify the task worktree is clean. Mark the PR ready for review when required evidence is complete or the user has accepted the disclosed limitation; otherwise retain draft status and say why.
+- Report the PR URL/state, validation, remaining limitations and how to use the result. State whether a local preview remains running.
+- “Wrap up” alone does not authorize merging, closing the issue as completed, deleting branches/worktrees/data, stopping a preview the user is using, or starting follow-on work. Leave merge approval with the user; perform cleanup only when authorized.
+
 ## PR creation — Codex and Claude
 
 These instructions apply to both agents. Use the tools available in the current session; do not assume a tool exists based on its name here.
