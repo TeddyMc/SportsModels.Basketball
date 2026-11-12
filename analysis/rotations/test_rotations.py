@@ -112,6 +112,17 @@ class TimelineTests(unittest.TestCase):
         self.assertIsNone(rows[(1, 10)][0]['points'])
         self.assertEqual(0, rows[(2, 20)][0]['points'])
 
+    def test_foul_markers_only_show_changes(self):
+        game, validation = fixture()
+        cells = reconstruct(game, validation)[0][(1, 10)]
+        for cell in cells:
+            cell['fouls'] = 1
+        other = [{'fouls': 1 if i == 0 else 2} for i in range(96)]
+        html = heatmap(cells, teammates=[other])
+        self.assertEqual(1, html.count('>★</span>'))
+        self.assertEqual(1, html.count('>▲1</span>'))
+        self.assertIn('teammates currently in trouble: 1', html)
+
     def test_final_score_does_not_use_stale_anchor(self):
         game, validation = fixture()
         game['Events'] = [event('PeriodBoundaryEvent', 0, 1, Marker='Start'),
@@ -161,7 +172,7 @@ class ViewTests(unittest.TestCase):
         for tid in (1, 2):
             self.assertIn('player=10', self.viewer.render(parse_qs(f'team={tid}')))
         history = self.viewer.render(parse_qs('team=1&player=10'))
-        self.assertLess(history.index('2026-01-01'), history.index('2026-02-02'))
+        self.assertLess(history.index('2026-02-02'), history.index('2026-01-01'))
         self.assertIn('Not on recorded game roster', history)
         self.assertIn('Team at game: BBB', history)
         self.assertIn('DNP', history)

@@ -240,11 +240,12 @@ def number(value):
     return 'N/A' if value is None else f'{value:.2f}'
 
 
-def heatmap(cells, details=''):
+def heatmap(cells, details='', teammates=()):
     if not cells:
         cells = [{'end': end, **dict.fromkeys(('on', 'minutes', 'fouls', 'trouble', 'points', 'ppm', 'margin'))}
                  for end in range(30, 2881, 30)]
     html = []
+    teammates = [other for other in teammates if len(other) == len(cells)]
     for i, c in enumerate(cells):
         end = c['end']
         quarter = (end - 1) // 720 + 1
@@ -257,8 +258,27 @@ def heatmap(cells, details=''):
                  f'\nPoints per minute played: {number(c["ppm"])}\nScore differential (+ trailing): {number(c["margin"])}')
         if details:
             title += '\n\n' + details
+        previous = cells[i-1].get('fouls') if i else 0
+        added = c.get('fouls') - previous if c.get('fouls') is not None and previous is not None else 0
+        markers = '★' + (str(added) if added > 1 else '') if added > 0 else ''
+        threshold = quarter + 1
+        entered, in_trouble = 0, 0
+        trouble_known = True
+        for other in teammates:
+            current = other[i].get('fouls')
+            prior = other[i-1].get('fouls') if i else 0
+            if current is None or prior is None:
+                trouble_known = False
+                continue
+            in_trouble += current >= threshold
+            entered += prior < threshold <= current
+        if entered and trouble_known:
+            markers += f'▲{in_trouble}'
+            title += f'\nTeammates newly in foul trouble: {entered}; teammates currently in trouble: {in_trouble} (Q+1)'
+        if added > 0:
+            title += f'\nCounted personal fouls in this interval: {added}'
         cls = 'on' if c['on'] else 'off' if c['on'] is False else 'unknown'
-        html.append(f'<span tabindex="0" class="cell {cls} {"quarter" if i in (24,48,72) else ""}" title="{escape(title, quote=True)}" aria-label="{escape(title, quote=True)}"></span>')
+        html.append(f'<span tabindex="0" class="cell {cls} {"quarter" if i in (24,48,72) else ""}" title="{escape(title, quote=True)}" aria-label="{escape(title, quote=True)}"><span class="marker">{markers}</span></span>')
     return '<div class="heatmap">' + ''.join(html) + '</div>'
 
 
@@ -285,12 +305,23 @@ nav{display:flex;gap:20px;margin-bottom:24px}.teams{display:grid;grid-template-c
 .history .row{grid-template-columns:330px minmax(700px,1fr);padding:0;gap:20px;border-bottom:0;align-items:center;min-height:20px}
 .history .heatmap{height:18px;margin:1px 0}.history .history-label{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;white-space:nowrap;line-height:20px}
 .history .minutes{font-variant-numeric:tabular-nums;color:#526075;font-size:11px}
+.marker{font-size:8px;line-height:9px;color:#111;background:#ffffffbb;position:absolute;top:0;left:0;z-index:2;pointer-events:none}.marker:empty{display:none}.cc{font-size:10px;font-weight:700;color:#176633}
 '''
 
 
 class Viewer:
     def __init__(self, database):
         self.database = str(database)
+        self.competitive = set()
+        with closing(sqlite3.connect(f'file:{Path(database).as_posix()}?mode=ro', uri=True)) as db:
+            if db.execute("SELECT name FROM sqlite_master WHERE name='info'").fetchone():
+                info_row = db.execute('SELECT value FROM info').fetchone()
+                info = json.loads(info_row[0]) if info_row else {}
+                path = info.get('model')
+                if path and Path(path).is_file() and digest(path) == info.get('model_sha256'):
+                    for source in read_json(path).get('Summary', {}).get('Sources', []):
+                        self.competitive.update(str(g['GameId']) for g in source.get('TypicalGames', [])
+                                                if 'Exclusion' in g and g['Exclusion'] is None)
 
     def render(self, query):
         with closing(sqlite3.connect(f'file:{Path(self.database).as_posix()}?mode=ro', uri=True)) as db:
@@ -319,6 +350,7 @@ class Viewer:
                         content += '<p class="warning">Missing game roster and rotation data</p>'
                     for row in roster:
                         data = json.loads(row['data'])
+                        data['_teammates'] = [json.loads(other['data'])['cells'] for other in roster if other['player'] != row['player']]
                         role = 'Starter' if row['started'] == 1 else 'Bench' if row['started'] == 0 else 'Role unknown'
                         content += render_row(link(row['name'], team=tid, player=row['player']) + ' · ' + role, data)
             elif player is not None:
@@ -328,8 +360,8 @@ class Viewer:
                 if name is None:
                     raise ValueError('Unknown player/team association')
                 title = f'{name["name"]} · {teams[team]} · 2025–26 regular season'
-                content += '<div class="history"><p class="muted">Minutes: actual / expected typical. Hover a date or row for full game details.</p>' + axis()
-                fixtures = db.execute('SELECT * FROM games WHERE home=? OR away=? ORDER BY day,id', (team, team)).fetchall()
+                content += '<div class="history"><p class="muted">Minutes: actual / expected typical. CC: model-confirmed clearly competitive. ★: counted personal foul. ▲n: a teammate entered Q+1 foul trouble; n teammates now in trouble. Hover for details.</p>' + axis()
+                fixtures = db.execute('SELECT * FROM games WHERE home=? OR away=? ORDER BY day DESC,id DESC', (team, team)).fetchall()
                 for game in fixtures:
                     row = db.execute('SELECT data FROM rotations WHERE game=? AND team=? AND player=?', (game['id'], team, player)).fetchone()
                     gd = json.loads(game['data'])
@@ -343,6 +375,8 @@ class Viewer:
                     opponent = game['away'] if game['home'] == team else game['home']
                     margin = None if gd['score'] is None else (gd['score'][1] - gd['score'][0]) * (1 if game['home'] == team else -1)
                     label = link(f'{game["day"]} {"vs" if game["home"] == team else "@"} {teams[opponent]}', game=game['id'], team=team)
+                    if game['id'] in self.competitive:
+                        label += ' <span class="cc">CC</span>'
                     detail = (f'Regular season · Team at game: {association} · Final differential {number(margin)}\n'
                               + unescape(re.sub('<[^>]*>', '', row_metadata(data).replace('<br>', '\n')))
                               + '\n' + ' · '.join(gd.get('warnings', [])))
@@ -351,8 +385,9 @@ class Viewer:
                     actual = number(data.get('actual') / 60 if data.get('actual') is not None else None)
                     expected = number(data.get('predicted'))
                     summary = f'<span class="minutes">{actual} / {expected}</span>'
+                    teammates = [json.loads(r['data'])['cells'] for r in db.execute('SELECT data FROM rotations WHERE game=? AND team=? AND player<>?', (game['id'], team, player))]
                     content += (f'<div class="row" title="{escape(detail, quote=True)}"><div class="history-label">'
-                                + label + summary + '</div><div>' + heatmap(data.get('cells'), detail) + '</div></div>')
+                                + label + summary + '</div><div>' + heatmap(data.get('cells'), detail, teammates) + '</div></div>')
                 content += '</div>'
             elif team is not None:
                 title = f'{teams[team]} · player directory · 2025–26'
@@ -372,7 +407,7 @@ def axis():
 
 
 def render_row(label, data):
-    return '<div class="row"><div>' + label + '<div class="muted">' + row_metadata(data) + '</div></div><div>' + heatmap(data.get('cells')) + '</div></div>'
+    return '<div class="row"><div>' + label + '<div class="muted">' + row_metadata(data) + '</div></div><div>' + heatmap(data.get('cells'), teammates=data.get('_teammates', ())) + '</div></div>'
 
 
 def serve(database, port):
