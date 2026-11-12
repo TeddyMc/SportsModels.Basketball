@@ -4,7 +4,7 @@ import csv
 from contextlib import closing
 from datetime import date, datetime
 from hashlib import sha256
-from html import escape
+from html import escape, unescape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
@@ -240,7 +240,7 @@ def number(value):
     return 'N/A' if value is None else f'{value:.2f}'
 
 
-def heatmap(cells):
+def heatmap(cells, details=''):
     if not cells:
         cells = [{'end': end, **dict.fromkeys(('on', 'minutes', 'fouls', 'trouble', 'points', 'ppm', 'margin'))}
                  for end in range(30, 2881, 30)]
@@ -255,6 +255,8 @@ def heatmap(cells):
                  f'{state}\nOn-court rate: {rate} (endpoint state)\nCumulative minutes: {number(c["minutes"])}\nPersonal fouls: {number(c["fouls"])}'
                  f'\nTeam players in foul trouble: {number(c["trouble"])}\nPoints: {number(c["points"])}'
                  f'\nPoints per minute played: {number(c["ppm"])}\nScore differential (+ trailing): {number(c["margin"])}')
+        if details:
+            title += '\n\n' + details
         cls = 'on' if c['on'] else 'off' if c['on'] is False else 'unknown'
         html.append(f'<span tabindex="0" class="cell {cls} {"quarter" if i in (24,48,72) else ""}" title="{escape(title, quote=True)}" aria-label="{escape(title, quote=True)}"></span>')
     return '<div class="heatmap">' + ''.join(html) + '</div>'
@@ -280,6 +282,9 @@ nav{display:flex;gap:20px;margin-bottom:24px}.teams{display:grid;grid-template-c
 .quarter{border-left:3px solid black}.cell:focus,.cell:hover{outline:2px solid #e07114;z-index:1}
 .axis{display:flex;justify-content:space-between;margin-left:350px;min-width:700px;color:#45536a}.muted{font-size:12px;color:#526075;line-height:1.6}.warning{background:#fff0cc;padding:10px}
 .empty{background:#eee;color:#555;padding:10px}.legend span{display:inline-block;width:14px;height:14px;margin:0 5px 0 15px}
+.history .row{grid-template-columns:330px minmax(700px,1fr);padding:0;gap:20px;border-bottom:0;align-items:center;min-height:20px}
+.history .heatmap{height:18px;margin:1px 0}.history .history-label{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;white-space:nowrap;line-height:20px}
+.history .minutes{font-variant-numeric:tabular-nums;color:#526075;font-size:11px}
 '''
 
 
@@ -323,7 +328,7 @@ class Viewer:
                 if name is None:
                     raise ValueError('Unknown player/team association')
                 title = f'{name["name"]} · {teams[team]} · 2025–26 regular season'
-                content += axis()
+                content += '<div class="history"><p class="muted">Minutes: actual / expected typical. Hover a date or row for full game details.</p>' + axis()
                 fixtures = db.execute('SELECT * FROM games WHERE home=? OR away=? ORDER BY day,id', (team, team)).fetchall()
                 for game in fixtures:
                     row = db.execute('SELECT data FROM rotations WHERE game=? AND team=? AND player=?', (game['id'], team, player)).fetchone()
@@ -338,12 +343,17 @@ class Viewer:
                     opponent = game['away'] if game['home'] == team else game['home']
                     margin = None if gd['score'] is None else (gd['score'][1] - gd['score'][0]) * (1 if game['home'] == team else -1)
                     label = link(f'{game["day"]} {"vs" if game["home"] == team else "@"} {teams[opponent]}', game=game['id'], team=team)
-                    label += f'<br><small>Regular season · Team at game: {escape(association)} · Final differential {number(margin)}</small>'
+                    detail = (f'Regular season · Team at game: {association} · Final differential {number(margin)}\n'
+                              + unescape(re.sub('<[^>]*>', '', row_metadata(data).replace('<br>', '\n')))
+                              + '\n' + ' · '.join(gd.get('warnings', [])))
                     if not gd['complete']:
-                        label += '<br><strong>Incomplete PBP</strong>'
-                    if gd.get('warnings'):
-                        label += '<br><small class="warning">' + escape(' · '.join(gd['warnings'])) + '</small>'
-                    content += render_row(label, data)
+                        detail += '\nIncomplete PBP'
+                    actual = number(data.get('actual') / 60 if data.get('actual') is not None else None)
+                    expected = number(data.get('predicted'))
+                    summary = f'<span class="minutes">{actual} / {expected}</span>'
+                    content += (f'<div class="row" title="{escape(detail, quote=True)}"><div class="history-label">'
+                                + label + summary + '</div><div>' + heatmap(data.get('cells'), detail) + '</div></div>')
+                content += '</div>'
             elif team is not None:
                 title = f'{teams[team]} · player directory · 2025–26'
                 content = team_directory(db, team)
