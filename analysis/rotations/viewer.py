@@ -46,8 +46,8 @@ def team_directory(db, team):
         cells = []
         for i, (on, known) in enumerate(zip(counts, totals)):
             rate = on / known if known else None
-            title = f'Elapsed {(i+1)*30//60}:{(i+1)*30%60:02d} · On court: {rate:.1%} ({on}/{known} known appearances)' if rate is not None else 'No known appearance data'
-            color = f'background:rgb({round(220-181*rate)},{round(227-120*rate)},{round(237-31*rate)})' if rate is not None else ''
+            title = f'Elapsed {(i+1)*30//60}:{(i+1)*30%60:02d} · On-court rate: {rate:.1%} ({on}/{known} known appearances)' if rate is not None else 'On-court rate: N/A · No known appearance data'
+            color = f'background:rgb({round(255-75*rate)},{round(245-221*rate)},{round(240-204*rate)})' if rate is not None else ''
             cells.append(f'<span tabindex="0" class="cell {"unknown" if rate is None else ""} {"quarter" if i in (24,48,72) else ""}" style="{color}" title="{escape(title, quote=True)}" aria-label="{escape(title, quote=True)}"></span>')
         label = link(row['name'], team=team, player=row['id'])
         label += f'<div class="muted">{number(average)} min/game played · {games} positive-minute games</div>'
@@ -250,8 +250,9 @@ def heatmap(cells):
         quarter = (end - 1) // 720 + 1
         remaining = quarter * 720 - end
         state = 'On court' if c['on'] else 'Off court' if c['on'] is False else 'Unknown'
+        rate = '100.0%' if c['on'] is True else '0.0%' if c['on'] is False else 'N/A'
         title = (f'Elapsed {end//60}:{end%60:02d} · Q{quarter} {remaining//60}:{remaining%60:02d} remaining\n'
-                 f'{state}\nCumulative minutes: {number(c["minutes"])}\nPersonal fouls: {number(c["fouls"])}'
+                 f'{state}\nOn-court rate: {rate} (endpoint state)\nCumulative minutes: {number(c["minutes"])}\nPersonal fouls: {number(c["fouls"])}'
                  f'\nTeam players in foul trouble: {number(c["trouble"])}\nPoints: {number(c["points"])}'
                  f'\nPoints per minute played: {number(c["ppm"])}\nScore differential (+ trailing): {number(c["margin"])}')
         cls = 'on' if c['on'] else 'off' if c['on'] is False else 'unknown'
@@ -275,7 +276,7 @@ body{font:15px system-ui;background:#f5f6f8;color:#17233b;margin:28px}a{color:#2
 nav{display:flex;gap:20px;margin-bottom:24px}.teams{display:grid;grid-template-columns:repeat(5,1fr);gap:16px}
 .teams a,.panel{background:white;padding:18px;border-radius:8px}.row{display:grid;grid-template-columns:330px minmax(700px,1fr);gap:20px;border-bottom:1px solid #ddd;padding:12px 0}
 .scroll{overflow-x:auto}.heatmap{display:grid;grid-template-columns:repeat(96,minmax(6px,1fr));height:36px;margin:6px 0}
-.cell{position:relative}.on{background:#276bce}.off{background:#dce3ed}.unknown{background:repeating-linear-gradient(45deg,#aaa,#aaa 2px,#eee 2px,#eee 5px)}
+.cell{position:relative}.on{background:#b41824}.off{background:#fff5f0}.unknown{background:repeating-linear-gradient(45deg,#aaa,#aaa 2px,#eee 2px,#eee 5px)}
 .quarter{border-left:3px solid black}.cell:focus,.cell:hover{outline:2px solid #e07114;z-index:1}
 .axis{display:flex;justify-content:space-between;margin-left:350px;min-width:700px;color:#45536a}.muted{font-size:12px;color:#526075;line-height:1.6}.warning{background:#fff0cc;padding:10px}
 .empty{background:#eee;color:#555;padding:10px}.legend span{display:inline-block;width:14px;height:14px;margin:0 5px 0 15px}

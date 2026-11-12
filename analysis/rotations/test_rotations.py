@@ -97,9 +97,12 @@ class TimelineTests(unittest.TestCase):
         html = heatmap(rows[(1, 10)])
         self.assertEqual(96, html.count('tabindex="0"'))
         self.assertEqual(3, html.count(' quarter"'))
+        self.assertIn('On-court rate: 100.0%', html)
+        self.assertIn('On-court rate: 0.0%', html)
         missing = heatmap([])
         self.assertEqual(96, missing.count('tabindex="0"'))
         self.assertEqual(96, missing.count('cell unknown'))
+        self.assertIn('On-court rate: N/A', missing)
 
     def test_unknown_player_credit_does_not_erase_other_players(self):
         game, validation = fixture()
