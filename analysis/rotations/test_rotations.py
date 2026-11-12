@@ -172,6 +172,20 @@ class ViewTests(unittest.TestCase):
         self.assertIn('team=1&amp;player=10', page)
         self.assertIn('Expected N/A', page)
 
+    def test_directory_orders_positive_appearance_average_and_rates(self):
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.execute('INSERT INTO players VALUES (11,1,?)', ('Bench scorer',))
+            cells = [{'on': True} for _ in range(96)]
+            db.execute('UPDATE rotations SET actual=600,data=? WHERE team=1 AND player=10', (json.dumps({'cells': cells}),))
+            db.execute('INSERT INTO rotations VALUES (?,?,?,?,?,?,?)', ('late', 1, 10, 'Traded <Player>', 0, 0, json.dumps({'cells': []})))
+            db.execute('UPDATE rotations SET data=? WHERE player=11', (json.dumps({'cells': [{'on': False} for _ in range(96)]}),))
+        page = self.viewer.render(parse_qs('team=1'))
+        self.assertLess(page.index('Bench scorer'), page.index('Traded &lt;Player&gt;'))
+        self.assertIn('10.00 min/game played · 1 positive-minute games', page)
+        self.assertIn('100.0% (1/1 known appearances)', page)
+        self.assertIn('0.0% (0/1 known appearances)', page)
+        self.assertEqual(192, page.count('tabindex="0"'))
+
     def test_model_adapter_joins_predictions_and_retains_multiple_reasons(self):
         ledger = Path(self.temp.name) / 'ledger.json'
         results = Path(self.temp.name) / 'results.json'

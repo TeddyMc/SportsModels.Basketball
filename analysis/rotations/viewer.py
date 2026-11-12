@@ -15,6 +15,44 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 from timeline import reconstruct
 
 VERSION = 1
+TEAM_NAMES = dict(zip(
+    'ATL BOS BKN CHA CHI CLE DAL DEN DET GSW HOU IND LAC LAL MEM MIA MIL MIN NOP NYK OKC ORL PHI PHX POR SAC SAS TOR UTA WAS'.split(),
+    ['Atlanta Hawks', 'Boston Celtics', 'Brooklyn Nets', 'Charlotte Hornets', 'Chicago Bulls',
+     'Cleveland Cavaliers', 'Dallas Mavericks', 'Denver Nuggets', 'Detroit Pistons',
+     'Golden State Warriors', 'Houston Rockets', 'Indiana Pacers', 'Los Angeles Clippers',
+     'Los Angeles Lakers', 'Memphis Grizzlies', 'Miami Heat', 'Milwaukee Bucks',
+     'Minnesota Timberwolves', 'New Orleans Pelicans', 'New York Knicks',
+     'Oklahoma City Thunder', 'Orlando Magic', 'Philadelphia 76ers', 'Phoenix Suns',
+     'Portland Trail Blazers', 'Sacramento Kings', 'San Antonio Spurs', 'Toronto Raptors',
+     'Utah Jazz', 'Washington Wizards']))
+
+
+def team_directory(db, team):
+    players = []
+    for row in db.execute('SELECT * FROM players WHERE team=?', (team,)):
+        appearances = db.execute('SELECT actual,data FROM rotations WHERE team=? AND player=? AND actual>0',
+                                 (team, row['id'])).fetchall()
+        average = sum(r['actual'] for r in appearances) / len(appearances) / 60 if appearances else None
+        counts, totals = [0]*96, [0]*96
+        for appearance in appearances:
+            for i, cell in enumerate(json.loads(appearance['data'])['cells']):
+                if cell['on'] is not None:
+                    counts[i] += int(cell['on'])
+                    totals[i] += 1
+        players.append((row, average, len(appearances), counts, totals))
+    players.sort(key=lambda p: (-(p[1] if p[1] is not None else -1), p[0]['name']))
+    content = '<p>Average regulation minutes and court rates use positive-minute appearances for this team only. Unknown cell states are excluded from that cell’s denominator; DNP/inactive games are excluded.</p>' + axis()
+    for row, average, games, counts, totals in players:
+        cells = []
+        for i, (on, known) in enumerate(zip(counts, totals)):
+            rate = on / known if known else None
+            title = f'Elapsed {(i+1)*30//60}:{(i+1)*30%60:02d} · On court: {rate:.1%} ({on}/{known} known appearances)' if rate is not None else 'No known appearance data'
+            color = f'background:rgb({round(220-181*rate)},{round(227-120*rate)},{round(237-31*rate)})' if rate is not None else ''
+            cells.append(f'<span tabindex="0" class="cell {"unknown" if rate is None else ""} {"quarter" if i in (24,48,72) else ""}" style="{color}" title="{escape(title, quote=True)}" aria-label="{escape(title, quote=True)}"></span>')
+        label = link(row['name'], team=team, player=row['id'])
+        label += f'<div class="muted">{number(average)} min/game played · {games} positive-minute games</div>'
+        content += '<div class="row"><div>' + label + '</div><div class="heatmap">' + ''.join(cells) + '</div></div>'
+    return content
 
 
 def read_json(path):
@@ -307,11 +345,10 @@ class Viewer:
                     content += render_row(label, data)
             elif team is not None:
                 title = f'{teams[team]} · player directory · 2025–26'
-                content = '<p>All players on a recorded game roster, including traded players.</p><div class="teams">'
-                content += ''.join(link(r['name'], team=team, player=r['id']) for r in db.execute('SELECT * FROM players WHERE team=? ORDER BY name', (team,))) + '</div>'
+                content = team_directory(db, team)
             else:
                 content = '<p>Choose a team to explore player histories and game rotations.</p><div class="teams">'
-                content += ''.join(link(name, team=tid) for tid, name in teams.items()) + '</div>'
+                content += ''.join(link(TEAM_NAMES.get(name, name), team=tid) for tid, name in sorted(teams.items(), key=lambda t: TEAM_NAMES.get(t[1], t[1]))) + '</div>'
             return ('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
                     '<title>' + escape(title) + '</title><style>' + STYLE + '</style><body><nav>' + nav + '</nav><h1>' + escape(title) + '</h1>'
                     '<p class="legend"><span class="on"></span>On court <span class="off"></span>Off court <span class="unknown"></span>Unknown</p>'
