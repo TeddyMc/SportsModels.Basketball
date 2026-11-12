@@ -5,7 +5,7 @@ from contextlib import closing
 from datetime import date, datetime
 from hashlib import sha256
 from html import escape
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import re
@@ -333,6 +333,8 @@ def serve(database, port):
             raise ValueError('Preparation has not completed; inspect its progress/error log')
     viewer = Viewer(database)
     class Handler(BaseHTTPRequestHandler):
+        timeout = 10
+
         def do_GET(self):
             try:
                 url = urlsplit(self.path)
@@ -347,7 +349,9 @@ def serve(database, port):
                 self.wfile.write(body)
             except (ValueError, KeyError):
                 self.send_error(404, 'Unknown rotation selection')
-    server = HTTPServer(('127.0.0.1', port), Handler)
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                pass  # A closed browser tab must not interrupt other requests.
+    server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
     print(f'Rotation viewer: http://127.0.0.1:{port}', flush=True)
     server.serve_forever()
 
